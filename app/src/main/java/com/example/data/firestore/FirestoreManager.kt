@@ -67,8 +67,8 @@ object FirestoreManager {
                         try {
                             val options = com.google.firebase.FirebaseOptions.Builder()
                                 .setApplicationId(context.packageName)
-                                .setApiKey("AIzaSySmartOsmAndroidKeySurvey2026")
-                                .setProjectId("smart-osm-community")
+                                .setApiKey("AIzaSyDdqGGglBsUlEh45cX7Zs4TUotxRqocLGI")
+                                .setProjectId("appclone-480208")
                                 .build()
                             FirebaseApp.initializeApp(context, options)
                         } catch (e2: Exception) {
@@ -77,7 +77,8 @@ object FirestoreManager {
                     }
                 }
 
-                val instance = FirebaseFirestore.getInstance()
+                val databaseId = "ai-studio-smartosm2-d91a2d80-d652-43d1-8e00-a4aeb190b30f"
+                val instance = FirebaseFirestore.getInstance(databaseId)
                 
                 // Configure persistent disk cache for offline-first reliability
                 try {
@@ -110,7 +111,8 @@ object FirestoreManager {
             return firestoreInstance
         }
         return try {
-            val instance = FirebaseFirestore.getInstance()
+            val databaseId = "ai-studio-smartosm2-d91a2d80-d652-43d1-8e00-a4aeb190b30f"
+            val instance = FirebaseFirestore.getInstance(databaseId)
             firestoreInstance = instance
             isConfigured = true
             instance

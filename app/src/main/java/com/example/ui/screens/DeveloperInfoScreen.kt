@@ -42,7 +42,8 @@ fun DeveloperInfoScreen(
     onNavigateToPlanOfWork: () -> Unit = {},
     onNavigateToDiagnostic: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
-    onNavigateToUserProfile: () -> Unit = {}
+    onNavigateToUserProfile: () -> Unit = {},
+    onNavigateToVhvRegistration: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
@@ -84,7 +85,7 @@ fun DeveloperInfoScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "ข้อมูลผู้พัฒนา (อสม.)",
+                        "ข้อมูลสมาชิก อสม.",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -161,6 +162,55 @@ fun DeveloperInfoScreen(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
+                }
+            }
+
+            // Registration Card (Primary Action)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNavigateToVhvRegistration)
+                    .shadow(6.dp, RoundedCornerShape(22.dp), spotColor = EmeraldPrimary),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = EmeraldPrimary),
+                border = androidx.compose.foundation.BorderStroke(2.dp, MintAccent.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.HowToReg, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
+                        Column {
+                            Text(
+                                text = "ลงทะเบียน อสม. ใหม่ / แก้ไขข้อมูล",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "จัดการข้อมูลประจำตัวและพื้นที่รับผิดชอบแบบสมบูรณ์",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.White)
                 }
             }
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
@@ -107,6 +108,7 @@ fun UserProfileScreen(
     authViewModel: AuthViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToLogin: () -> Unit,
+    onNavigateToVhvRegistration: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val userProfile by authViewModel.userProfile.collectAsState()
@@ -205,6 +207,20 @@ fun UserProfileScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+
+                        // Edit VHV Profile
+                        OutlinedButton(
+                            onClick = { onNavigateToVhvRegistration() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("btn_profile_edit_vhv"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("แก้ไขข้อมูลสมาชิก อสม. (ลงทะเบียน)", fontWeight = FontWeight.SemiBold)
+                        }
 
                         // Switch account / Re-login
                         Button(

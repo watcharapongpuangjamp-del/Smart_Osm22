@@ -116,13 +116,29 @@ fun AppNavigation(
                 LoginScreen(
                     authViewModel = authViewModel,
                     onLoginSuccess = {
-                        navController.navigate("pin_lock") {
-                            popUpTo("login") { inclusive = true }
+                        val prefs = navController.context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                        val isSetupDone = prefs.getBoolean("surveyor_setup_completed", false)
+                        if (isSetupDone) {
+                            navController.navigate("pin_lock") {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate("vhv_registration") {
+                                popUpTo("login") { inclusive = true }
+                            }
                         }
                     },
                     onContinueOffline = {
-                        navController.navigate("pin_lock") {
-                            popUpTo("login") { inclusive = true }
+                        val prefs = navController.context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                        val isSetupDone = prefs.getBoolean("surveyor_setup_completed", false)
+                        if (isSetupDone) {
+                            navController.navigate("pin_lock") {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate("vhv_registration") {
+                                popUpTo("login") { inclusive = true }
+                            }
                         }
                     },
                     onNavigateBack = {
@@ -134,6 +150,20 @@ fun AppNavigation(
                     },
                     onNavigateToProfile = {
                         navController.navigate("user_profile")
+                    }
+                )
+            }
+            
+            composable("vhv_registration") {
+                VhvRegistrationScreen(
+                    authViewModel = authViewModel,
+                    onRegistrationSuccess = {
+                        navController.navigate("pin_lock") {
+                            popUpTo("vhv_registration") { inclusive = true }
+                        }
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
                     }
                 )
             }
@@ -214,14 +244,16 @@ fun AppNavigation(
                     onNavigateToPlanOfWork = { navController.navigate("plan_of_work") },
                     onNavigateToDiagnostic = { navController.navigate("diagnostic") },
                     onNavigateToLogin = { navController.navigate("login") },
-                    onNavigateToUserProfile = { navController.navigate("user_profile") }
+                    onNavigateToUserProfile = { navController.navigate("user_profile") },
+                    onNavigateToVhvRegistration = { navController.navigate("vhv_registration") }
                 )
             }
             composable("user_profile") {
                 UserProfileScreen(
                     authViewModel = authViewModel,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToLogin = { navController.navigate("login") }
+                    onNavigateToLogin = { navController.navigate("login") },
+                    onNavigateToVhvRegistration = { navController.navigate("vhv_registration") }
                 )
             }
             composable("diagnostic") {
