@@ -55,9 +55,27 @@ fun HouseholdFormScreen(
     
     var houseNo by remember { mutableStateOf("") }
     var villageNo by remember { mutableStateOf("") }
+    var villageName by remember { mutableStateOf("") }
     var subdistrict by remember { mutableStateOf("") }
     var district by remember { mutableStateOf("") }
     var province by remember { mutableStateOf("") }
+    
+    // Real list for Subdistrict Pa Kha, District Ban Na, Province Nakhon Nayok
+    val villageOptions = listOf(
+        "1" to "หมู่ 1 บ้านหนองเคี่ยม",
+        "2" to "หมู่ 2 บ้านคลองผักหนาม",
+        "3" to "หมู่ 3 บ้านป่าขะ",
+        "4" to "หมู่ 4 บ้านท่ามะเฟือง",
+        "5" to "หมู่ 5 บ้านโคกประเสริฐ",
+        "6" to "หมู่ 6 บ้านหนองยาง",
+        "7" to "หมู่ 7 บ้านกร่างประตูวัง",
+        "8" to "หมู่ 8 บ้านคลองส่ง",
+        "9" to "หมู่ 9 บ้านคลองกระโดน",
+        "10" to "หมู่ 10 บ้านต้นกระบก",
+        "11" to "หมู่ 11 บ้านดงขี้พุก",
+        "12" to "หมู่ 12 บ้านทุ่งกระโปรง",
+        "13" to "หมู่ 13 บ้านคลองนางหงษ์"
+    )
     
     // Head of household fields
     var headNationalId by remember { mutableStateOf("") }
@@ -83,6 +101,7 @@ fun HouseholdFormScreen(
             household?.let {
                 houseNo = it.houseNo
                 villageNo = it.villageNo
+                villageName = villageOptions.find { opt -> opt.first == it.villageNo }?.second ?: "หมู่ที่ ${it.villageNo}"
                 subdistrict = it.subdistrict
                 district = it.district
                 province = it.province
@@ -336,20 +355,49 @@ fun HouseholdFormScreen(
                             label = { Text("บ้านเลขที่ *") },
                             placeholder = { Text("เช่น 123/4") },
                             leadingIcon = { Icon(Icons.Filled.Home, contentDescription = null, tint = EmeraldPrimary) },
-                            modifier = Modifier.weight(1.2f),
+                            modifier = Modifier.weight(1f),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        OutlinedTextField(
-                            value = villageNo,
-                            onValueChange = { villageNo = it },
-                            label = { Text("หมู่ที่") },
-                            placeholder = { Text("เช่น 2") },
-                            modifier = Modifier.weight(0.8f),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                        var expanded by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            OutlinedTextField(
+                                value = villageName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("หมู่ที่ / หมู่บ้าน") },
+                                leadingIcon = { Icon(Icons.Filled.Map, contentDescription = null, tint = EmeraldPrimary) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                villageOptions.forEach { (no, name) ->
+                                    DropdownMenuItem(
+                                        text = { Text(name) },
+                                        onClick = {
+                                            villageNo = no
+                                            villageName = name
+                                            expanded = false
+                                            
+                                            // Auto-fill address details for the subdistrict if empty
+                                            if (subdistrict.isBlank()) subdistrict = "ต.ป่าขะ"
+                                            if (district.isBlank()) district = "อ.บ้านนา"
+                                            if (province.isBlank()) province = "จ.นครนายก"
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Row(

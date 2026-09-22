@@ -349,7 +349,7 @@ fun HouseholdListScreen(
                 ) {
                     Icon(Icons.Filled.UploadFile, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("นำเข้าข้อมูล หมู่ 8 ล่าสุด (PopulationData_Moo8.xlsx)", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("นำเข้าข้อมูลทะเบียนประชากร (ไฟล์ตัวอย่าง)", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
 

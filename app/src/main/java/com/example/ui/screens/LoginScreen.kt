@@ -85,8 +85,8 @@ fun LoginScreen(
     var showAreaSetupDialog by remember { mutableStateOf(false) }
     var surveyorNameInput by remember { mutableStateOf("") }
     var surveyorPhoneInput by remember { mutableStateOf("") }
-    var selectedVillageNo by remember { mutableStateOf("8") }
-    var selectedVillageName by remember { mutableStateOf("หมู่ 8 บ้านกร่างประดู่วัง") }
+    var selectedVillageNo by remember { mutableStateOf("7") }
+    var selectedVillageName by remember { mutableStateOf("หมู่ 7 บ้านกร่างประตูวัง") }
 
     // Missing Web Client ID setup dialog (fallback only if config is absent)
     var showMissingClientIdDialog by remember { mutableStateOf(false) }
@@ -209,7 +209,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                 ) {
                     Text(
-                        text = "รพ.สต.บ้านกร่างประดู่วัง • อ.บ้านนา จ.นครนายก",
+                        text = "ต.ป่าขะ • อ.บ้านนา จ.นครนายก",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -392,7 +392,7 @@ fun LoginScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = userProfile?.villageName ?: "หมู่ 8 บ้านกร่างประดู่วัง",
+                                        text = userProfile?.villageName ?: "หมู่ 7 บ้านกร่างประตูวัง",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface

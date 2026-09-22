@@ -55,8 +55,8 @@ fun VhvRegistrationScreen(
     // Form States
     var fullName by remember { mutableStateOf(userProfile?.displayName ?: "") }
     var phoneNumber by remember { mutableStateOf(userProfile?.phoneNumber ?: "") }
-    var villageNo by remember { mutableStateOf(userProfile?.villageNo ?: "8") }
-    var villageName by remember { mutableStateOf(userProfile?.villageName ?: "หมู่ 8 บ้านกร่างประดู่วัง") }
+    var villageNo by remember { mutableStateOf(userProfile?.villageNo ?: "7") }
+    var villageName by remember { mutableStateOf(userProfile?.villageName ?: "หมู่ 7 บ้านกร่างประตูวัง") }
     var subdistrict by remember { mutableStateOf(userProfile?.subdistrict ?: "ต.ป่าขะ") }
     var district by remember { mutableStateOf(userProfile?.district ?: "อ.บ้านนา") }
     var province by remember { mutableStateOf(userProfile?.province ?: "จ.นครนายก") }
@@ -64,16 +64,21 @@ fun VhvRegistrationScreen(
 
     var isSubmitting by remember { mutableStateOf(false) }
 
-    // Village Options
+    // Village Options (Real list for Subdistrict Pa Kha, District Ban Na, Province Nakhon Nayok)
     val villageOptions = listOf(
-        "8" to "หมู่ 8 บ้านกร่างประดู่วัง (พื้นที่หลัก)",
-        "1" to "หมู่ 1 บ้านป่าขะ",
-        "2" to "หมู่ 2 บ้านดอนกลาง",
-        "3" to "หมู่ 3 บ้านโคกกระชาย",
-        "4" to "หมู่ 4 บ้านวังยายหุ่น",
-        "5" to "หมู่ 5 บ้านคลองเหมือง",
-        "6" to "หมู่ 6 บ้านหนองบัว",
-        "7" to "หมู่ 7 บ้านเกาะกระชาย"
+        "1" to "หมู่ 1 บ้านหนองเคี่ยม",
+        "2" to "หมู่ 2 บ้านคลองผักหนาม",
+        "3" to "หมู่ 3 บ้านป่าขะ",
+        "4" to "หมู่ 4 บ้านท่ามะเฟือง",
+        "5" to "หมู่ 5 บ้านโคกประเสริฐ",
+        "6" to "หมู่ 6 บ้านหนองยาง",
+        "7" to "หมู่ 7 บ้านกร่างประตูวัง",
+        "8" to "หมู่ 8 บ้านคลองส่ง",
+        "9" to "หมู่ 9 บ้านคลองกระโดน",
+        "10" to "หมู่ 10 บ้านต้นกระบก",
+        "11" to "หมู่ 11 บ้านดงขี้พุก",
+        "12" to "หมู่ 12 บ้านทุ่งกระโปรง",
+        "13" to "หมู่ 13 บ้านคลองนางหงษ์"
     )
 
     Scaffold(

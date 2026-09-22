@@ -588,7 +588,7 @@ fun DeveloperInfoScreen(
                             }
                         },
                         title = "พื้นที่รับผิดชอบ",
-                        text = "หมู่ 8 ตำบลป่าขะ อำเภอบ้านนา จังหวัดนครนายก"
+                        text = "หมู่ 7 ตำบลป่าขะ อำเภอบ้านนา จังหวัดนครนายก"
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -606,7 +606,7 @@ fun DeveloperInfoScreen(
                             }
                         },
                         title = "หน่วยบริการปฐมภูมิ",
-                        text = "รพ.สต.บ้านกร่างประดู่วัง"
+                        text = "รพ.สต.ป่าขะ"
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
