@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.ThemeQuickToggleButton
@@ -28,14 +29,14 @@ fun HealthKnowledgeScreen(
 ) {
     val scrollState = rememberScrollState()
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("เกณฑ์ความดัน", "ดัชนีมวลกาย (BMI)", "ความรู้ตามช่วงวัย")
+    val tabs = listOf("บทบาทหน้าที่ อสม.", "เกณฑ์ความดัน", "ดัชนีมวลกาย (BMI)", "ความรู้ตามช่วงวัย")
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        "คู่มือความรู้และเกณฑ์สุขภาพ อสม.",
+                        "คู่มือ อสม. และเกณฑ์สุขภาพ",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -80,12 +81,78 @@ fun HealthKnowledgeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (selectedTab) {
-                    0 -> BloodPressureGuideContent()
-                    1 -> BmiGuideContent()
-                    2 -> AgeGroupKnowledgeContent()
+                    0 -> VhvRolesContent()
+                    1 -> BloodPressureGuideContent()
+                    2 -> BmiGuideContent()
+                    3 -> AgeGroupKnowledgeContent()
                 }
             }
         }
+    }
+}
+
+@Composable
+fun VhvRolesContent() {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(
+            "อาสาสมัครสาธารณสุขประจำหมู่บ้าน (อสม.)",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = EmeraldPrimary
+        )
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = EmeraldPrimary.copy(alpha = 0.05f)),
+            border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.1f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "“แจ้งข่าวร้าย กระจายข่าวดี ชี้บริการ ประสานงานสาธารณสุข บำบัดทุกข์ให้ประชาชน ดำรงตนเป็นตัวอย่างที่ดี”",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = EmeraldPrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Text(
+            "อสม. คือ อาสาสมัครที่ได้รับการคัดเลือกจากชุมชนและได้รับการอบรมจากเจ้าหน้าที่สาธารณสุข เพื่อทำหน้าที่ดูแลสุขภาพของตนเอง ครอบครัว และชุมชน โดยมีบทบาทสำคัญในฐานะ “หมอคนที่ 1” ของชุมชน",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        Text("บทบาทหน้าที่หลัก 8 ประการ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+
+        val roles = listOf(
+            "1. การสื่อสารและให้ความรู้" to "ถ่ายทอดข่าวสารสาธารณสุขระหว่างเจ้าหน้าที่และประชาชน แจ้งเตือนโรคระบาด และประชาสัมพันธ์ข้อมูลสุขภาพ",
+            "2. การส่งเสริมสุขภาพ" to "เฝ้าเะวังและติดตามดูแลหญิงตั้งครรภ์ เด็กแรกเกิด และผู้สูงอายุ ให้คำแนะนำด้านโภชนาการและการออกกำลังกาย",
+            "3. การป้องกันและควบคุมโรค" to "คัดกรองโรคเบื้องต้น (ความดัน/เบาหวาน) สำรวจแหล่งเพาะพันธุ์ยุงลาย และแจ้งเตือนโรคติดต่อในพื้นที่",
+            "4. การรักษาพยาบาลเบื้องต้น" to "ให้บริการช่วยเหลือและปฐมพยาบาลเบื้องต้น โดยใช้ยาและเวชภัณฑ์ตามขอบเขตที่กำหนด",
+            "5. การประสานงานและส่งต่อ" to "ประสานกิจกรรมพัฒนาสาธารณสุข และส่งต่อผู้ป่วยไปยัง รพ.สต. หรือหน่วยงานที่เกี่ยวข้อง",
+            "6. การฟื้นฟูสภาพ" to "ติดตามดูแลและฟื้นฟูสภาพผู้ป่วยติดเตียง ผู้พิการ และผู้สูงอายุในชุมชนอย่างต่อเนื่อง",
+            "7. การจัดการสิ่งแวดล้อม" to "ร่วมป้องกันและแก้ไขปัญหามลภาวะสิ่งแวดล้อม ตรวจสอบคุณภาพน้ำ และสารเคมีตกค้างในชุมชน",
+            "8. การเป็นแบบอย่างที่ดี" to "ปฏิบัติตนเป็นแบบอย่างด้านสุขภาพ และเป็นผู้นำในการพัฒนาสาธารณสุขของหมู่บ้าน"
+        )
+
+        roles.forEach { (title, desc) ->
+            RoleItem(title, desc)
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun RoleItem(title: String, desc: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text(desc, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
