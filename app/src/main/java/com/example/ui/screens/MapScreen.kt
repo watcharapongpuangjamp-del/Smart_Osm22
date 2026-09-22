@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -138,7 +139,8 @@ val GOOGLE_HYBRID_TILE_SOURCE: ITileSource = object : OnlineTileSourceBase(
 fun MapScreen(
     viewModel: PersonViewModel,
     targetHouseholdId: Long = -1L,
-    onHouseClick: (Long) -> Unit
+    onHouseClick: (Long) -> Unit,
+    onNavigateBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -282,6 +284,15 @@ fun MapScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "ย้อนกลับ",
+                            tint = Color.White
+                        )
+                    }
+                },
                 title = {
                     Column {
                         Text(

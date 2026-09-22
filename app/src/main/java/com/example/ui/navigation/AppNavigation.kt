@@ -203,7 +203,8 @@ fun AppNavigation(
                 MapScreen(
                     viewModel = viewModel,
                     targetHouseholdId = targetHouseholdId,
-                    onHouseClick = { householdId -> navController.navigate("house_detail/$householdId") }
+                    onHouseClick = { householdId -> navController.navigate("house_detail/$householdId") },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(BottomNavItem.Info.route) {

@@ -424,7 +424,11 @@ open class AuthManager(
             Log.i(TAG, "User cancelled Google Sign-In prompt")
             Result.failure(e)
         } catch (e: GetCredentialException) {
-            Log.e(TAG, "CredentialManager failed: ${e.message}", e)
+            if (e.message?.contains("No credentials available", ignoreCase = true) == true || e.javaClass.simpleName == "NoCredentialException") {
+                Log.w(TAG, "CredentialManager: No credentials available on device (${e.message})")
+            } else {
+                Log.e(TAG, "CredentialManager failed: ${e.message}", e)
+            }
             Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "Authentication failed", e)
