@@ -29,6 +29,10 @@ class MainActivity : FragmentActivity() {
 
         // Initialize Firestore with offline cache and retry settings
         val firestore = FirestoreManager.initialize(applicationContext)
+        
+        // Schedule periodic background sync with Firestore
+        com.example.data.sync.HouseholdSyncScheduler.schedulePeriodicSync(applicationContext)
+
         val firestorePopulationRepository = FirestorePopulationRepository(
             firestoreProvider = { FirestoreManager.getInstance() }
         )
