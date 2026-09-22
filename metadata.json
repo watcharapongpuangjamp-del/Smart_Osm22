@@ -1,0 +1,6 @@
+{
+  "name": "ทะเบียนประชากร",
+  "description": "Population Registration and Household Management App",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

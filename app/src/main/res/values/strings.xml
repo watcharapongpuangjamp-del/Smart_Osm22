@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">ทะเบียนประชากร</string>
+    <string name="user_profile_title">ข้อมูลโปรไฟล์ผู้ใช้งาน</string>
+    <string name="user_identity_label">User Identity (Firebase Auth)</string>
+    <string name="default_web_client_id">807955777817-m34ve45b5a3rdmtd6fpf4s1hsaolh2l5.apps.googleusercontent.com</string>
+</resources>

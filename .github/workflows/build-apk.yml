@@ -1,0 +1,169 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug or release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Accept Android SDK Licenses & Install SDK 36
+        run: |
+          echo "Accepting Android SDK licenses..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          echo "Ensuring platform 36 and build-tools are installed..."
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" 2>/dev/null || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      # Create .env with safe defaults for CI builds
+      # This prevents empty placeholder issues in Manifest or Secrets plugin
+      - name: Create .env file for CI
+        run: |
+          cat > .env << 'EOF'
+          # CI Build Environment Configuration
+          MAPS_API_KEY=placeholder_maps_api_key_ci_build
+          FIREBASE_APPCHECK_DEBUG_TOKEN=placeholder_token
+          EOF
+          echo "✓ Created .env with CI-safe defaults"
+
+      # Setup debug keystore: decode from base64 if available, or generate if missing
+      - name: Setup debug keystore
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "✓ Decoded debug.keystore from debug.keystore.base64"
+          elif [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 -alias androiddebugkey \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "✓ Generated new debug keystore"
+          else
+            echo "✓ Using existing debug keystore"
+          fi
+
+      # Setup release keystore fallback if release build is requested
+      - name: Setup release keystore for CI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release'
+        run: |
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
+            echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "✓ Decoded release keystore from secrets"
+          elif [ -n "${{ secrets.KEYSTORE_PATH }}" ]; then
+            echo "KEYSTORE_PATH=${{ secrets.KEYSTORE_PATH }}" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "✓ Using KEYSTORE_PATH from secrets"
+          elif [ ! -f "my-upload-key.jks" ]; then
+            echo "Generating fallback upload keystore for CI release build..."
+            keytool -genkey -v -keystore my-upload-key.jks \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 -alias upload \
+              -storepass android -keypass android \
+              -dname "CN=Android Release CI,O=Android,C=US"
+            echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+            echo "✓ Generated fallback release keystore"
+          fi
+
+      # Run unit tests before assembling APK
+      - name: Run Unit Tests
+        run: |
+          echo "Running unit tests..."
+          gradle testDebugUnitTest --stacktrace --no-daemon
+        env:
+          MAPS_API_KEY: placeholder_maps_api_key_ci_build
+        continue-on-error: true
+
+      - name: Build Debug APK
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'debug'
+        run: |
+          echo "Building Debug APK..."
+          gradle assembleDebug --stacktrace --no-daemon
+        env:
+          MAPS_API_KEY: placeholder_maps_api_key_ci_build
+
+      - name: Build Release APK
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release'
+        run: |
+          echo "Building Release APK..."
+          gradle assembleRelease --stacktrace --no-daemon
+        env:
+          MAPS_API_KEY: placeholder_maps_api_key_ci_build
+
+      - name: Upload Debug APK
+        if: (github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'debug') && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Release APK
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Print Build Status
+        if: always()
+        run: |
+          echo "Build Status: ${{ job.status }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
