@@ -25,7 +25,7 @@ class PersonRepository(
     private val personDao: PersonDao,
     private val householdDao: HouseholdDao,
     private val personHistoryDao: PersonHistoryDao,
-    private val populationEventDao: PopulationEventDao
+    private val populationEventDao: PopulationEventDao = db.populationEventDao()
 ) {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())

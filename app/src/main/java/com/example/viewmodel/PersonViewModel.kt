@@ -321,6 +321,43 @@ class PersonViewModel(
             }
         }
     }
+
+    fun addNewHouseholdWithHead(
+        houseNo: String,
+        headName: String,
+        latitude: Double?,
+        longitude: Double?,
+        onComplete: (Long) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val uuid = java.util.UUID.randomUUID().toString()
+            val household = Household(
+                householdUuid = uuid,
+                houseNo = houseNo.ifBlank { "000/0" },
+                latitude = latitude,
+                longitude = longitude,
+                locationProvider = if (latitude != null && longitude != null) "MANUAL_DIALOG" else null,
+                locationCapturedAt = if (latitude != null && longitude != null) System.currentTimeMillis() else null,
+                lastModified = System.currentTimeMillis()
+            )
+            val houseId = repository.insertHousehold(household)
+            
+            if (headName.isNotBlank()) {
+                val person = Person(
+                    personUuid = java.util.UUID.randomUUID().toString(),
+                    householdId = houseId,
+                    fullName = headName.trim(),
+                    houseStatus = HouseholdRole.HEAD,
+                    lastModified = System.currentTimeMillis()
+                )
+                repository.insert(person)
+            }
+            
+            withContext(Dispatchers.Main) {
+                onComplete(houseId)
+            }
+        }
+    }
     fun updateHousehold(household: Household) = viewModelScope.launch {
         repository.updateHousehold(household.copy(lastModified = System.currentTimeMillis()))
     }

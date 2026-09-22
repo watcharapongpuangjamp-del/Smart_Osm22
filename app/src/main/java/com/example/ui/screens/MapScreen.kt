@@ -163,6 +163,7 @@ fun MapScreen(
     var selectedMapLayer by remember { mutableStateOf(MapLayerType.STANDARD_2D) }
     var selectedMarkerStyle by remember { mutableStateOf(MarkerStyle.PIN_3D_HOUSE) }
     var showLayerMenu by remember { mutableStateOf(false) }
+    var isClusteringEnabled by remember { mutableStateOf(true) }
 
     // Pinning state
     var isPinningMode by remember { mutableStateOf(false) }
@@ -171,6 +172,8 @@ fun MapScreen(
     var showHouseholdPickerDialog by remember { mutableStateOf(false) }
     var showUnpinnedHousesSheet by remember { mutableStateOf(false) }
     var houseToClearLocation by remember { mutableStateOf<HouseSummary?>(null) }
+    var currentUserLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var showAddHouseholdDialog by remember { mutableStateOf(false) }
 
     val selectedHousePersons = remember(selectedHouse, allHouseholdsWithPersons) {
         allHouseholdsWithPersons.find { it.household.id == selectedHouse?.householdId }?.persons ?: emptyList()
@@ -189,6 +192,48 @@ fun MapScreen(
         }
         if (searchQuery.isBlank()) byFilter
         else byFilter.filter { it.houseNo.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+
+    val currentZoom = mapViewRef?.zoomLevelDouble ?: 15.0
+
+    val displayedClusters = remember(filteredHouses, isClusteringEnabled, currentZoom) {
+        if (!isClusteringEnabled || currentZoom >= 16.5) {
+            filteredHouses.map { HouseCluster(it.latitude ?: 0.0, it.longitude ?: 0.0, listOf(it)) }
+        } else {
+            val gridFactor = Math.pow(2.0, (16.5 - currentZoom).coerceAtLeast(0.0)) * 0.008
+            class MutableCluster(var latSum: Double, var lonSum: Double, val houses: MutableList<HouseSummary>, var count: Int)
+            val clusters = mutableListOf<MutableCluster>()
+            
+            for (house in filteredHouses) {
+                val lat = house.latitude ?: continue
+                val lon = house.longitude ?: continue
+                
+                var added = false
+                for (cluster in clusters) {
+                    val avgLat = cluster.latSum / cluster.count
+                    val avgLon = cluster.lonSum / cluster.count
+                    if (Math.abs(avgLat - lat) < gridFactor && Math.abs(avgLon - lon) < gridFactor) {
+                        cluster.houses.add(house)
+                        cluster.latSum += lat
+                        cluster.lonSum += lon
+                        cluster.count++
+                        added = true
+                        break
+                    }
+                }
+                if (!added) {
+                    clusters.add(MutableCluster(lat, lon, mutableListOf(house), 1))
+                }
+            }
+            
+            clusters.map { c ->
+                HouseCluster(
+                    centerLat = c.latSum / c.count,
+                    centerLon = c.lonSum / c.count,
+                    houses = c.houses
+                )
+            }
+        }
     }
 
     // Population statistics for distribution analysis
@@ -376,34 +421,58 @@ fun MapScreen(
 
                     // Add markers based on displayMode
                     if (displayMode == MapDisplayMode.HOUSEHOLDS) {
-                        filteredHouses.forEach { house ->
-                            val lat = house.latitude ?: return@forEach
-                            val lon = house.longitude ?: return@forEach
-                            val marker = Marker(mapView).apply {
-                                position = GeoPoint(lat, lon)
-                                title = "บ้านเลขที่ ${house.houseNo}"
-                                snippet = "ประชากร ${house.totalMembers} คน (ชาย ${house.males}, หญิง ${house.females})"
-                                subDescription = if (house.elderly > 0) "ผู้สูงอายุ: ${house.elderly} คน" else null
-                                icon = createHouseholdMarkerDrawable(
-                                    context = context,
-                                    totalMembers = house.totalMembers,
-                                    hasElderly = house.elderly > 0,
-                                    hasChildren = house.children > 0,
-                                    dataStatus = house.dataStatus,
-                                    isSelected = selectedHouse?.householdId == house.householdId,
-                                    markerStyle = selectedMarkerStyle
-                                )
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            }
-                            marker.setOnMarkerClickListener { _, _ ->
-                                if (!isPinningMode) {
-                                    selectedHouse = house
-                                    showHouseholdSheet = true
-                                    mapView.controller.animateTo(GeoPoint(lat, lon))
+                        displayedClusters.forEach { cluster ->
+                            if (cluster.houses.size == 1) {
+                                val house = cluster.houses.first()
+                                val lat = house.latitude ?: return@forEach
+                                val lon = house.longitude ?: return@forEach
+                                val marker = Marker(mapView).apply {
+                                    position = GeoPoint(lat, lon)
+                                    title = "บ้านเลขที่ ${house.houseNo}"
+                                    snippet = "ประชากร ${house.totalMembers} คน (ชาย ${house.males}, หญิง ${house.females})"
+                                    subDescription = if (house.elderly > 0) "ผู้สูงอายุ: ${house.elderly} คน" else null
+                                    icon = createHouseholdMarkerDrawable(
+                                        context = context,
+                                        totalMembers = house.totalMembers,
+                                        hasElderly = house.elderly > 0,
+                                        hasChildren = house.children > 0,
+                                        dataStatus = house.dataStatus,
+                                        isSelected = selectedHouse?.householdId == house.householdId,
+                                        markerStyle = selectedMarkerStyle
+                                    )
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                 }
-                                true
+                                marker.setOnMarkerClickListener { _, _ ->
+                                    if (!isPinningMode) {
+                                        selectedHouse = house
+                                        showHouseholdSheet = true
+                                        mapView.controller.animateTo(GeoPoint(lat, lon))
+                                    }
+                                    true
+                                }
+                                mapView.overlays.add(marker)
+                            } else {
+                                val marker = Marker(mapView).apply {
+                                    position = GeoPoint(cluster.centerLat, cluster.centerLon)
+                                    title = "กลุ่มครัวเรือน (${cluster.houses.size} หลัง)"
+                                    snippet = "แตะเพื่อซูมเข้าหรือดูรายการครัวเรือนในกลุ่มนี้"
+                                    icon = createClusterMarkerDrawable(
+                                        context = context,
+                                        count = cluster.houses.size,
+                                        isSelected = cluster.houses.any { it.householdId == selectedHouse?.householdId }
+                                    )
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                }
+                                marker.setOnMarkerClickListener { _, _ ->
+                                    if (!isPinningMode) {
+                                        mapView.controller.animateTo(GeoPoint(cluster.centerLat, cluster.centerLon))
+                                        mapView.controller.setZoom(mapView.zoomLevelDouble + 2.0)
+                                        Toast.makeText(context, "กลุ่มครัวเรือน: ${cluster.houses.size} หลังคาเรือน (ซูมเข้าเพื่อขยาย)", Toast.LENGTH_SHORT).show()
+                                    }
+                                    true
+                                }
+                                mapView.overlays.add(marker)
                             }
-                            mapView.overlays.add(marker)
                         }
                     } else {
                         allEvents.forEach { event ->
@@ -443,6 +512,18 @@ fun MapScreen(
                             })
                         }
                         mapView.overlays.add(pendingMarker)
+                    }
+
+                    // Add current user location blue marker if available
+                    currentUserLocation?.let { loc ->
+                        val userMarker = Marker(mapView).apply {
+                            position = loc
+                            title = "ตำแหน่งของคุณ"
+                            snippet = "พิกัดปัจจุบันจาก GPS"
+                            icon = createUserLocationMarkerDrawable(context)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        }
+                        mapView.overlays.add(userMarker)
                     }
 
                     mapView.invalidate()
@@ -770,6 +851,69 @@ fun MapScreen(
                     modifier = Modifier.size(44.dp).shadow(4.dp, CircleShape)
                 ) {
                     Icon(Icons.Filled.Layers, contentDescription = "เปลี่ยนรูปแบบแผนที่ 3D/2D", modifier = Modifier.size(20.dp))
+                }
+
+                // Clustering Toggle FAB
+                FloatingActionButton(
+                    onClick = { isClusteringEnabled = !isClusteringEnabled },
+                    containerColor = if (isClusteringEnabled) EmeraldPrimary else MaterialTheme.colorScheme.surface,
+                    contentColor = if (isClusteringEnabled) Color.White else MaterialTheme.colorScheme.onSurface,
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp).shadow(4.dp, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Filled.GroupWork,
+                        contentDescription = "สลับการรวมกลุ่มหมุด (Cluster)",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Add New Household FAB
+                FloatingActionButton(
+                    onClick = { showAddHouseholdDialog = true },
+                    containerColor = EmeraldPrimary,
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp).shadow(4.dp, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Filled.AddHome,
+                        contentDescription = "เพิ่มครัวเรือนใหม่",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // My GPS Location FAB
+                FloatingActionButton(
+                    onClick = {
+                        if (locationPermissionState.status.isGranted) {
+                            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                                if (location != null) {
+                                    val userPoint = GeoPoint(location.latitude, location.longitude)
+                                    currentUserLocation = userPoint
+                                    mapViewRef?.controller?.animateTo(userPoint)
+                                    mapViewRef?.controller?.setZoom(17.0)
+                                    Toast.makeText(context, "ย้ายไปยังตำแหน่งปัจจุบันของคุณ", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "ไม่พบตำแหน่ง GPS ปัจจุบัน", Toast.LENGTH_SHORT).show()
+                                }
+                            }.addOnFailureListener {
+                                Toast.makeText(context, "เกิดข้อผิดพลาดในการดึง GPS", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            locationPermissionState.launchPermissionRequest()
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = Color(0xFF2563EB),
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp).shadow(4.dp, CircleShape)
+                ) {
+                    Icon(
+                        Icons.Filled.MyLocation,
+                        contentDescription = "ตำแหน่งปัจจุบันของฉัน",
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
 
                 // Zoom In
@@ -1331,6 +1475,34 @@ fun MapScreen(
                         } else {
                             Toast.makeText(context, msg ?: "เกิดข้อผิดพลาด", Toast.LENGTH_SHORT).show()
                         }
+                    }
+                }
+            }
+        )
+    }
+
+    // Dialog: Add New Household Manually
+    if (showAddHouseholdDialog) {
+        val center = mapViewRef?.mapCenter
+        AddHouseholdDialog(
+            initialLat = center?.latitude,
+            initialLon = center?.longitude,
+            onDismiss = { showAddHouseholdDialog = false },
+            onSave = { houseNo, headName, lat, lon ->
+                if (houseNo.isBlank()) {
+                    Toast.makeText(context, "กรุณากรอกบ้านเลขที่", Toast.LENGTH_SHORT).show()
+                    return@AddHouseholdDialog
+                }
+                viewModel.addNewHouseholdWithHead(
+                    houseNo = houseNo,
+                    headName = headName,
+                    latitude = lat,
+                    longitude = lon
+                ) { newId ->
+                    Toast.makeText(context, "บันทึกครัวเรือนใหม่สำเร็จ (ID: $newId)", Toast.LENGTH_SHORT).show()
+                    showAddHouseholdDialog = false
+                    if (lat != null && lon != null) {
+                        mapViewRef?.controller?.animateTo(GeoPoint(lat, lon))
                     }
                 }
             }
@@ -2155,6 +2327,188 @@ fun createEventMarkerDrawable(context: Context, type: PopulationEventType, isSel
     val textBounds = Rect()
     tPaint.getTextBounds(letter, 0, letter.length, textBounds)
     canvas.drawText(letter, width / 2f, circleCenterY + (textBounds.height() / 2f), tPaint)
+
+    return BitmapDrawable(context.resources, bitmap)
+}
+
+data class HouseCluster(
+    val centerLat: Double,
+    val centerLon: Double,
+    val houses: List<HouseSummary>
+)
+
+fun createClusterMarkerDrawable(
+    context: Context,
+    count: Int,
+    isSelected: Boolean
+): Drawable {
+    val density = context.resources.displayMetrics.density
+    val size = (48 * density).toInt()
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // Shadow
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.argb(60, 0, 0, 0)
+    }
+    canvas.drawCircle(size / 2f, (size / 2f) + (2 * density), (size / 2f) - (4 * density), shadowPaint)
+
+    // Background circle
+    paint.color = if (isSelected) android.graphics.Color.rgb(16, 185, 129) else android.graphics.Color.rgb(5, 150, 105)
+    paint.style = Paint.Style.FILL
+    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (4 * density), paint)
+
+    // Inner white border
+    paint.color = android.graphics.Color.WHITE
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = 2.5f * density
+    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (5 * density), paint)
+
+    // Text (Count)
+    paint.style = Paint.Style.FILL
+    paint.color = android.graphics.Color.WHITE
+    paint.textSize = 14 * density
+    paint.typeface = Typeface.DEFAULT_BOLD
+    paint.textAlign = Paint.Align.CENTER
+
+    val textY = (size / 2f) - ((paint.descent() + paint.ascent()) / 2f)
+    canvas.drawText(count.toString(), size / 2f, textY, paint)
+
+    return BitmapDrawable(context.resources, bitmap)
+}
+
+@Composable
+fun AddHouseholdDialog(
+    initialLat: Double?,
+    initialLon: Double?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Double?, Double?) -> Unit
+) {
+    var houseNo by remember { mutableStateOf("") }
+    var headName by remember { mutableStateOf("") }
+    var latText by remember { mutableStateOf(initialLat?.toString() ?: "") }
+    var lonText by remember { mutableStateOf(initialLon?.toString() ?: "") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.AddHome,
+                            contentDescription = null,
+                            tint = EmeraldPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            "เพิ่มครัวเรือนใหม่ (Manual)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Filled.Close, contentDescription = "ปิด")
+                    }
+                }
+
+                OutlinedTextField(
+                    value = houseNo,
+                    onValueChange = { houseNo = it },
+                    label = { Text("บ้านเลขที่ (เช่น 123/4)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = headName,
+                    onValueChange = { headName = it },
+                    label = { Text("ชื่อหัวหน้าครัวเรือน") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = latText,
+                        onValueChange = { latText = it },
+                        label = { Text("ละติจูด (Latitude)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = lonText,
+                        onValueChange = { lonText = it },
+                        label = { Text("ลองจิจูด (Longitude)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val lat = latText.toDoubleOrNull()
+                        val lon = lonText.toDoubleOrNull()
+                        onSave(houseNo, headName, lat, lon)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("บันทึกลงฐานข้อมูล (Room)", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+fun createUserLocationMarkerDrawable(context: Context): Drawable {
+    val density = context.resources.displayMetrics.density
+    val size = (40 * density).toInt()
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    // Outer glow / pulse circle
+    paint.color = android.graphics.Color.argb(70, 37, 99, 235)
+    paint.style = Paint.Style.FILL
+    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+    // Inner solid blue circle
+    paint.color = android.graphics.Color.rgb(37, 99, 235)
+    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (6 * density), paint)
+
+    // White center dot
+    paint.color = android.graphics.Color.WHITE
+    canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
 
     return BitmapDrawable(context.resources, bitmap)
 }
