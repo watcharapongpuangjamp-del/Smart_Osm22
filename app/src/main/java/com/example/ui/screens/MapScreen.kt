@@ -39,6 +39,7 @@ import com.example.data.Household
 import com.example.data.DataStatus
 import com.example.data.PopulationEvent
 import com.example.data.PopulationEventType
+import com.example.data.sync.SyncState
 import com.example.ui.theme.*
 import com.example.viewmodel.PersonViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -143,6 +144,7 @@ fun MapScreen(
     val houseSummary by viewModel.houseSummary.collectAsStateWithLifecycle()
     val allEvents by viewModel.allEvents.collectAsStateWithLifecycle()
     val allHouseholdsWithPersons by viewModel.allHouseholdsWithPersons.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
 
     val locationPermissionState = rememberPermissionState(permission = Manifest.permission.ACCESS_FINE_LOCATION)
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -454,6 +456,75 @@ fun MapScreen(
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Cloud Sync / Offline Status Indicator Pill
+                val syncIndicatorColors = when (syncState) {
+                    is SyncState.Syncing -> Pair(Color(0xFF2563EB), Color(0xFFDBEAFE))
+                    is SyncState.Success -> Pair(Color(0xFF059669), Color(0xFFD1FAE5))
+                    is SyncState.Error -> Pair(Color(0xFFDC2626), Color(0xFFFEE2E2))
+                    else -> Pair(Color(0xFF4B5563), Color(0xFFF3F4F6))
+                }
+
+                val syncIndicatorText = when (val state = syncState) {
+                    is SyncState.Syncing -> state.message.ifBlank { "กำลังซิงค์ข้อมูล..." }
+                    is SyncState.Success -> "ซิงค์คลาวด์แล้ว (Online)"
+                    is SyncState.Error -> "ซิงค์ไม่สำเร็จ (แตะเพื่อลองใหม่)"
+                    else -> "โหมดออฟไลน์ (Room Local)"
+                }
+
+                val syncIndicatorIcon = when (syncState) {
+                    is SyncState.Syncing -> Icons.Filled.Sync
+                    is SyncState.Success -> Icons.Filled.CloudDone
+                    is SyncState.Error -> Icons.Filled.CloudOff
+                    else -> Icons.Filled.Storage
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = syncIndicatorColors.second,
+                    border = BorderStroke(1.dp, syncIndicatorColors.first.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .shadow(2.dp, RoundedCornerShape(20.dp))
+                        .clickable {
+                            if (syncState !is SyncState.Syncing) {
+                                viewModel.bidirectionalSync { result ->
+                                    result.onSuccess {
+                                        Toast.makeText(context, "ซิงค์ข้อมูลสำเร็จ", Toast.LENGTH_SHORT).show()
+                                    }.onFailure {
+                                        Toast.makeText(context, "ซิงค์ไม่สำเร็จ: ${it.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (syncState is SyncState.Syncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = syncIndicatorColors.first
+                            )
+                        } else {
+                            Icon(
+                                syncIndicatorIcon,
+                                contentDescription = null,
+                                tint = syncIndicatorColors.first,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = syncIndicatorText,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = syncIndicatorColors.first
+                        )
+                    }
+                }
+
                 // Pinning mode status banner
                 AnimatedVisibility(
                     visible = isPinningMode,
