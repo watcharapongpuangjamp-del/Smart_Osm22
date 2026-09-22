@@ -41,6 +41,7 @@ import com.example.data.PopulationEvent
 import com.example.data.PopulationEventType
 import com.example.data.sync.SyncState
 import com.example.ui.theme.*
+import com.example.ui.components.IdCardScannerDialog
 import com.example.viewmodel.PersonViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -2390,6 +2391,19 @@ fun AddHouseholdDialog(
     var headName by remember { mutableStateOf("") }
     var latText by remember { mutableStateOf(initialLat?.toString() ?: "") }
     var lonText by remember { mutableStateOf(initialLon?.toString() ?: "") }
+    var showScanner by remember { mutableStateOf(false) }
+    var scannedBadgeText by remember { mutableStateOf<String?>(null) }
+
+    if (showScanner) {
+        IdCardScannerDialog(
+            onDismiss = { showScanner = false },
+            onScanned = { res ->
+                if (!res.houseNo.isNullOrBlank()) houseNo = res.houseNo
+                if (!res.fullName.isNullOrBlank()) headName = res.fullName
+                scannedBadgeText = res.displaySummary
+            }
+        )
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -2404,7 +2418,7 @@ fun AddHouseholdDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2422,13 +2436,49 @@ fun AddHouseholdDialog(
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            "เพิ่มครัวเรือนใหม่ (Manual)",
+                            "เพิ่มครัวเรือนใหม่",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Filled.Close, contentDescription = "ปิด")
+                    }
+                }
+
+                // Barcode Auto-Fill Button
+                OutlinedButton(
+                    onClick = { showScanner = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldPrimary),
+                    border = BorderStroke(1.5.dp, EmeraldPrimary)
+                ) {
+                    Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("สแกนบัตรประชาชน (Auto-fill)", fontWeight = FontWeight.Bold)
+                }
+
+                if (scannedBadgeText != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = EmeraldPrimary.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(16.dp))
+                            Text(
+                                "ดึงข้อมูลจากบัตรประชาชนเรียบร้อยแล้ว",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = EmeraldPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 

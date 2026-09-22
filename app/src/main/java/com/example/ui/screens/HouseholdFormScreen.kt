@@ -3,17 +3,17 @@ package com.example.ui.screens
 import android.Manifest
 import android.annotation.SuppressLint
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,9 +24,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.data.Household
+import androidx.compose.ui.unit.sp
 import com.example.data.DataStatus
+import com.example.data.Household
+import com.example.data.HouseholdRole
+import com.example.data.Person
+import com.example.ui.components.IdCardScannerDialog
 import com.example.ui.theme.*
+import com.example.utils.IdCardScanResult
+import com.example.utils.NationalIdBarcodeParser
 import com.example.viewmodel.PersonViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -45,14 +51,28 @@ fun HouseholdFormScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
     
     var houseNo by remember { mutableStateOf("") }
+    var villageNo by remember { mutableStateOf("") }
+    var subdistrict by remember { mutableStateOf("") }
+    var district by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    
+    // Head of household fields
+    var headNationalId by remember { mutableStateOf("") }
+    var headName by remember { mutableStateOf("") }
+    
     var latitude by remember { mutableStateOf<Double?>(null) }
     var longitude by remember { mutableStateOf<Double?>(null) }
     var locationAccuracy by remember { mutableStateOf<Float?>(null) }
     var locationCapturedAt by remember { mutableStateOf<Long?>(null) }
     var locationProvider by remember { mutableStateOf<String?>(null) }
     var dataStatus by remember { mutableStateOf(DataStatus.NEEDS_REVIEW) }
+    
+    // Scanner Dialog state
+    var showScannerDialog by remember { mutableStateOf(false) }
+    var lastScanResult by remember { mutableStateOf<IdCardScanResult?>(null) }
     
     val locationPermissionState = rememberPermissionState(permission = Manifest.permission.ACCESS_FINE_LOCATION)
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -62,6 +82,10 @@ fun HouseholdFormScreen(
             val household = viewModel.getHouseholdById(householdId)
             household?.let {
                 houseNo = it.houseNo
+                villageNo = it.villageNo
+                subdistrict = it.subdistrict
+                district = it.district
+                province = it.province
                 latitude = it.latitude
                 longitude = it.longitude
                 locationAccuracy = it.locationAccuracy
@@ -70,6 +94,25 @@ fun HouseholdFormScreen(
                 dataStatus = it.dataStatus
             }
         }
+    }
+
+    if (showScannerDialog) {
+        IdCardScannerDialog(
+            onDismiss = { showScannerDialog = false },
+            onScanned = { result ->
+                if (!result.houseNo.isNullOrBlank()) houseNo = result.houseNo
+                if (!result.villageNo.isNullOrBlank()) villageNo = result.villageNo
+                if (!result.subdistrict.isNullOrBlank()) subdistrict = result.subdistrict
+                if (!result.district.isNullOrBlank()) district = result.district
+                if (!result.province.isNullOrBlank()) province = result.province
+                if (!result.fullName.isNullOrBlank()) headName = result.fullName
+                if (!result.nationalId.isNullOrBlank()) headNationalId = result.nationalId
+                
+                lastScanResult = result
+                Toast.makeText(context, "กรอกข้อมูลอัตโนมัติจากการสแกนสำเร็จ", Toast.LENGTH_SHORT).show()
+            },
+            viewModel = viewModel
+        )
     }
 
     Scaffold(
@@ -89,6 +132,11 @@ fun HouseholdFormScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "ย้อนกลับ", tint = Color.White)
                     }
                 },
+                actions = {
+                    IconButton(onClick = { showScannerDialog = true }) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "สแกนบัตรประชาชน", tint = Color.White)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = EmeraldPrimary,
                     titleContentColor = Color.White
@@ -102,6 +150,10 @@ fun HouseholdFormScreen(
                         val household = Household(
                             id = if (householdId == -1L) 0 else householdId,
                             houseNo = houseNo.trim(),
+                            villageNo = villageNo.trim(),
+                            subdistrict = subdistrict.trim(),
+                            district = district.trim(),
+                            province = province.trim(),
                             latitude = latitude,
                             longitude = longitude,
                             locationAccuracy = locationAccuracy,
@@ -111,6 +163,17 @@ fun HouseholdFormScreen(
                         )
                         if (householdId == -1L) {
                             viewModel.insertHousehold(household) { newId ->
+                                // If head of household information was provided, create and link person record
+                                if (headName.isNotBlank() || headNationalId.isNotBlank()) {
+                                    val headPerson = Person(
+                                        householdId = newId,
+                                        nationalId = headNationalId.trim().ifBlank { null },
+                                        fullName = headName.trim().ifBlank { "หัวหน้าครัวเรือน $houseNo" },
+                                        houseStatus = HouseholdRole.HEAD,
+                                        lastModified = System.currentTimeMillis()
+                                    )
+                                    viewModel.insert(headPerson)
+                                }
                                 onNavigateToDetail(newId)
                             }
                         } else {
@@ -134,10 +197,108 @@ fun HouseholdFormScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Card 1: Address
+            // Hero Action Card: Barcode Scanner Auto-Fill
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, RoundedCornerShape(18.dp), spotColor = CardShadowTint),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = EmeraldPrimary.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, EmeraldPrimary.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.QrCodeScanner,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    "สแกนบาร์โค้ดบัตรประชาชน",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "ML Kit Smart Auto-fill",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = EmeraldPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        "สแกนบาร์โค้ด Code 128 ด้านหลังบัตร หรือ QR Code เพื่อกรอกข้อมูลบ้านเลขที่ ที่อยู่ และหัวหน้าครัวเรือนอัตโนมัติ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Button(
+                        onClick = { showScannerDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("เปิดกล้องสแกนบัตรประชาชน", fontWeight = FontWeight.Bold)
+                    }
+
+                    AnimatedVisibility(visible = lastScanResult != null) {
+                        lastScanResult?.let { res ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(18.dp))
+                                    Text(
+                                        text = "ข้อมูลจากการสแกน: ${res.displaySummary}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Card 1: Address Info
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,25 +321,133 @@ fun HouseholdFormScreen(
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(EmeraldPrimary)
                         )
-                        Text("ข้อมูลประจำครัวเรือน", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("ข้อมูลที่อยู่ครัวเรือน", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = houseNo,
+                            onValueChange = { houseNo = it },
+                            label = { Text("บ้านเลขที่ *") },
+                            placeholder = { Text("เช่น 123/4") },
+                            leadingIcon = { Icon(Icons.Filled.Home, contentDescription = null, tint = EmeraldPrimary) },
+                            modifier = Modifier.weight(1.2f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = villageNo,
+                            onValueChange = { villageNo = it },
+                            label = { Text("หมู่ที่") },
+                            placeholder = { Text("เช่น 2") },
+                            modifier = Modifier.weight(0.8f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = subdistrict,
+                            onValueChange = { subdistrict = it },
+                            label = { Text("ตำบล") },
+                            placeholder = { Text("ตำบล") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = district,
+                            onValueChange = { district = it },
+                            label = { Text("อำเภอ") },
+                            placeholder = { Text("อำเภอ") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
                     OutlinedTextField(
-                        value = houseNo,
-                        onValueChange = { houseNo = it },
-                        label = { Text("บ้านเลขที่ *") },
-                        placeholder = { Text("เช่น 12/3 หรือ 45") },
-                        leadingIcon = { Icon(Icons.Filled.Home, contentDescription = null, tint = EmeraldPrimary) },
+                        value = province,
+                        onValueChange = { province = it },
+                        label = { Text("จังหวัด") },
+                        placeholder = { Text("จังหวัด เช่น เชียงใหม่") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
             }
+
+            // Card 2: Head of Household Info
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(3.dp, RoundedCornerShape(18.dp), spotColor = CardShadowTint),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp, 16.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MintAccent)
+                        )
+                        Text("ข้อมูลหัวหน้าครัวเรือน", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                    OutlinedTextField(
+                        value = headNationalId,
+                        onValueChange = { headNationalId = it },
+                        label = { Text("เลขประจำตัวประชาชน 13 หลัก") },
+                        placeholder = { Text("เช่น 1509900123456") },
+                        leadingIcon = { Icon(Icons.Filled.Badge, contentDescription = null, tint = EmeraldPrimary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = headName,
+                        onValueChange = { headName = it },
+                        label = { Text("ชื่อ-นามสกุล หัวหน้าครัวเรือน") },
+                        placeholder = { Text("เช่น นายสมชาย ใจดี") },
+                        leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = EmeraldPrimary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Text(
+                        "เมื่อบันทึก ระบบจะลงทะเบียนบุคคลนี้เป็นหัวหน้าครัวเรือนให้อัตโนมัติ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             
-            // Card 2: GPS Telemetry
+            // Card 3: GPS Telemetry
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,7 +564,8 @@ fun HouseholdFormScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(72.dp))
         }
     }
 }
-

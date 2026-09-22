@@ -80,14 +80,19 @@ fun QrScannerScreen(
     // Process scanned value against database
     fun handleScannedCode(rawCode: String) {
         val cleaned = rawCode.trim()
+        val parsed = com.example.utils.NationalIdBarcodeParser.parse(cleaned)
+        val idToSearch = parsed.nationalId ?: cleaned
         val found = persons.find { 
-            it.nationalId == cleaned || it.personUuid == cleaned || it.fullName.contains(cleaned, ignoreCase = true)
+            (it.nationalId != null && it.nationalId == idToSearch) || 
+            it.personUuid == cleaned || 
+            it.fullName.contains(cleaned, ignoreCase = true) ||
+            (parsed.fullName != null && it.fullName.contains(parsed.fullName, ignoreCase = true))
         }
         if (found != null) {
             scannedResult = found.fullName
             onPersonFound(found.id)
         } else {
-            errorMessage = "ไม่พบข้อมูลประชากรสำหรับรหัส: $cleaned"
+            errorMessage = "ไม่พบข้อมูลประชากรสำหรับรหัส: ${parsed.formattedNationalId ?: cleaned}"
         }
     }
 
