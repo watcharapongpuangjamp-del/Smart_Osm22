@@ -155,23 +155,35 @@ class AuthViewModel(
 
     fun saveSurveyorProfile(
         context: Context,
+        fullName: String? = null,
         villageNo: String,
         villageName: String,
         subdistrict: String = "ต.ป่าขะ",
         district: String = "อ.บ้านนา",
         province: String = "จ.นครนายก",
         phone: String? = null,
-        role: String? = "อสม. ประจำหมู่บ้าน"
+        role: String? = "อสม. ประจำหมู่บ้าน",
+        vhvCardId: String? = null,
+        citizenId: String? = null,
+        healthCenter: String? = null,
+        photoUrl: String? = null,
+        vhvCardPhotoUrl: String? = null
     ) {
         authManager.saveSurveyorProfile(
             context = context,
+            fullName = fullName,
             villageNo = villageNo,
             villageName = villageName,
             subdistrict = subdistrict,
             district = district,
             province = province,
             phone = phone,
-            role = role
+            role = role,
+            vhvCardId = vhvCardId,
+            citizenId = citizenId,
+            healthCenter = healthCenter,
+            photoUrl = photoUrl,
+            vhvCardPhotoUrl = vhvCardPhotoUrl
         )
     }
 

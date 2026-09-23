@@ -65,6 +65,12 @@ open class AuthManager(
     private var cachedProvince: String = "จ.นครนายก"
     private var cachedPhoneNumber: String? = null
     private var cachedRoleTitle: String = "อสม. ประจำหมู่บ้าน"
+    private var cachedFullName: String? = null
+    private var cachedPhotoUrl: String? = null
+    private var cachedVhvCardId: String? = null
+    private var cachedCitizenId: String? = null
+    private var cachedHealthCenter: String? = null
+    private var cachedVhvCardPhotoUrl: String? = null
 
     fun ensureFirebase(context: Context): FirebaseAuth? {
         try {
@@ -111,33 +117,40 @@ open class AuthManager(
             cachedProvince = prefs.getString("surveyor_province", "จ.นครนายก") ?: "จ.นครนายก"
             cachedPhoneNumber = prefs.getString("surveyor_phone", null)
             cachedRoleTitle = prefs.getString("surveyor_role", "อสม. ประจำหมู่บ้าน") ?: "อสม. ประจำหมู่บ้าน"
+            cachedVhvCardId = prefs.getString("surveyor_vhv_card_id", null)
+            cachedCitizenId = prefs.getString("surveyor_citizen_id", null)
+            cachedHealthCenter = prefs.getString("surveyor_health_center", "รพ.สต.ป่าขะ")
+            cachedVhvCardPhotoUrl = prefs.getString("surveyor_vhv_card_photo", null)
 
-            val localUid = prefs.getString("local_user_uid", null)
-            if (localUid != null && _currentUser.value == null) {
-                val profile = UserProfile(
-                    uid = localUid,
-                    displayName = prefs.getString("local_user_name", null),
-                    email = prefs.getString("local_user_email", null),
-                    photoUrl = prefs.getString("local_user_photo", null),
-                    isEmailVerified = true,
-                    phoneNumber = cachedPhoneNumber,
-                    isAnonymous = prefs.getBoolean("local_user_anonymous", false),
-                    providerId = prefs.getString("local_user_provider", "google.com") ?: "google.com",
-                    providerIds = listOf(prefs.getString("local_user_provider", "google.com") ?: "google.com"),
-                    creationTimestamp = prefs.getLong("local_user_timestamp", System.currentTimeMillis()),
-                    lastSignInTimestamp = System.currentTimeMillis(),
-                    villageNo = cachedVillageNo,
-                    villageName = cachedVillageName,
-                    subdistrict = cachedSubdistrict,
-                    district = cachedDistrict,
-                    province = cachedProvince,
-                    roleTitle = cachedRoleTitle
-                )
-                _localProfile = profile
-                _userProfile.value = profile
-            } else {
-                updateUser(_currentUser.value)
-            }
+            val localUid = prefs.getString("local_user_uid", null) ?: "vhv_local_user_1"
+            val displayName = prefs.getString("local_user_name", null)
+            val photoUrl = prefs.getString("local_user_photo", null)
+
+            val profile = UserProfile(
+                uid = _currentUser.value?.uid ?: localUid,
+                displayName = displayName ?: _currentUser.value?.displayName,
+                email = prefs.getString("local_user_email", _currentUser.value?.email),
+                photoUrl = photoUrl ?: _currentUser.value?.photoUrl?.toString(),
+                isEmailVerified = true,
+                phoneNumber = cachedPhoneNumber ?: _currentUser.value?.phoneNumber,
+                isAnonymous = prefs.getBoolean("local_user_anonymous", false),
+                providerId = prefs.getString("local_user_provider", "local") ?: "local",
+                providerIds = listOf(prefs.getString("local_user_provider", "local") ?: "local"),
+                creationTimestamp = prefs.getLong("local_user_timestamp", System.currentTimeMillis()),
+                lastSignInTimestamp = System.currentTimeMillis(),
+                villageNo = cachedVillageNo,
+                villageName = cachedVillageName,
+                subdistrict = cachedSubdistrict,
+                district = cachedDistrict,
+                province = cachedProvince,
+                roleTitle = cachedRoleTitle,
+                vhvCardId = cachedVhvCardId,
+                citizenId = cachedCitizenId,
+                healthCenter = cachedHealthCenter,
+                vhvCardPhotoUrl = cachedVhvCardPhotoUrl
+            )
+            _localProfile = profile
+            _userProfile.value = profile
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load surveyor profile: ${e.message}")
         }
@@ -178,7 +191,11 @@ open class AuthManager(
             subdistrict = cachedSubdistrict,
             district = cachedDistrict,
             province = cachedProvince,
-            roleTitle = cachedRoleTitle
+            roleTitle = cachedRoleTitle,
+            vhvCardId = cachedVhvCardId,
+            citizenId = cachedCitizenId,
+            healthCenter = cachedHealthCenter,
+            vhvCardPhotoUrl = cachedVhvCardPhotoUrl
         )
         _localProfile = profile
         _userProfile.value = profile
@@ -186,13 +203,19 @@ open class AuthManager(
 
     open fun saveSurveyorProfile(
         context: Context,
+        fullName: String? = null,
         villageNo: String,
         villageName: String,
         subdistrict: String = "ต.ป่าขะ",
         district: String = "อ.บ้านนา",
         province: String = "จ.นครนายก",
         phone: String? = null,
-        role: String? = "อสม. ประจำหมู่บ้าน"
+        role: String? = "อสม. ประจำหมู่บ้าน",
+        vhvCardId: String? = null,
+        citizenId: String? = null,
+        healthCenter: String? = null,
+        photoUrl: String? = null,
+        vhvCardPhotoUrl: String? = null
     ) {
         try {
             val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
@@ -203,8 +226,12 @@ open class AuthManager(
             cachedProvince = province.trim().ifBlank { "จ.นครนายก" }
             cachedPhoneNumber = phone?.trim()?.takeIf { it.isNotBlank() }
             cachedRoleTitle = role?.trim()?.takeIf { it.isNotBlank() } ?: "อสม. ประจำหมู่บ้าน"
+            if (!vhvCardId.isNullOrBlank()) cachedVhvCardId = vhvCardId.trim()
+            if (!citizenId.isNullOrBlank()) cachedCitizenId = citizenId.trim()
+            if (!healthCenter.isNullOrBlank()) cachedHealthCenter = healthCenter.trim()
+            if (!vhvCardPhotoUrl.isNullOrBlank()) cachedVhvCardPhotoUrl = vhvCardPhotoUrl.trim()
 
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("surveyor_village_no", cachedVillageNo)
                 .putString("surveyor_village_name", cachedVillageName)
                 .putString("surveyor_subdistrict", cachedSubdistrict)
@@ -212,23 +239,50 @@ open class AuthManager(
                 .putString("surveyor_province", cachedProvince)
                 .putString("surveyor_phone", cachedPhoneNumber)
                 .putString("surveyor_role", cachedRoleTitle)
+                .putString("surveyor_vhv_card_id", cachedVhvCardId)
+                .putString("surveyor_citizen_id", cachedCitizenId)
+                .putString("surveyor_health_center", cachedHealthCenter)
+                .putString("surveyor_vhv_card_photo", cachedVhvCardPhotoUrl)
                 .putBoolean("surveyor_setup_completed", true)
-                .apply()
 
-            if (_localProfile != null) {
-                _localProfile = _localProfile?.copy(
-                    villageNo = cachedVillageNo,
-                    villageName = cachedVillageName,
-                    subdistrict = cachedSubdistrict,
-                    district = cachedDistrict,
-                    province = cachedProvince,
-                    phoneNumber = cachedPhoneNumber,
-                    roleTitle = cachedRoleTitle
-                )
-                _userProfile.value = _localProfile
-            } else {
-                updateUser(_currentUser.value)
+            fullName?.trim()?.takeIf { it.isNotBlank() }?.let { name ->
+                editor.putString("local_user_name", name)
             }
+            photoUrl?.trim()?.takeIf { it.isNotBlank() }?.let { pic ->
+                editor.putString("local_user_photo", pic)
+            }
+            editor.apply()
+
+            val currentProfile = _userProfile.value
+            val newUid = currentProfile?.uid ?: prefs.getString("local_user_uid", "vhv_local_user_1") ?: "vhv_local_user_1"
+            val newName = fullName?.trim()?.takeIf { it.isNotBlank() } ?: currentProfile?.displayName ?: prefs.getString("local_user_name", "ผู้ลงทะเบียน อสม.")
+            val newPhoto = photoUrl?.trim()?.takeIf { it.isNotBlank() } ?: currentProfile?.photoUrl ?: prefs.getString("local_user_photo", null)
+
+            val updatedProfile = UserProfile(
+                uid = newUid,
+                displayName = newName,
+                email = currentProfile?.email ?: prefs.getString("local_user_email", null),
+                photoUrl = newPhoto,
+                isEmailVerified = true,
+                phoneNumber = cachedPhoneNumber,
+                isAnonymous = currentProfile?.isAnonymous ?: false,
+                providerId = currentProfile?.providerId ?: "local",
+                providerIds = currentProfile?.providerIds ?: listOf("local"),
+                creationTimestamp = currentProfile?.creationTimestamp ?: System.currentTimeMillis(),
+                lastSignInTimestamp = System.currentTimeMillis(),
+                villageNo = cachedVillageNo,
+                villageName = cachedVillageName,
+                subdistrict = cachedSubdistrict,
+                district = cachedDistrict,
+                province = cachedProvince,
+                roleTitle = cachedRoleTitle,
+                vhvCardId = cachedVhvCardId,
+                citizenId = cachedCitizenId,
+                healthCenter = cachedHealthCenter,
+                vhvCardPhotoUrl = cachedVhvCardPhotoUrl
+            )
+            _localProfile = updatedProfile
+            _userProfile.value = updatedProfile
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save surveyor profile", e)
         }
@@ -245,7 +299,11 @@ open class AuthManager(
                 district = cachedDistrict,
                 province = cachedProvince,
                 phoneNumberOverride = cachedPhoneNumber,
-                roleTitle = cachedRoleTitle
+                roleTitle = cachedRoleTitle,
+                vhvCardId = cachedVhvCardId,
+                citizenId = cachedCitizenId,
+                healthCenter = cachedHealthCenter,
+                vhvCardPhotoUrl = cachedVhvCardPhotoUrl
             )
         } else if (_localProfile != null) {
             _userProfile.value = _localProfile

@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -16,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,30 +26,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.ui.components.ThemeQuickToggleButton
 import com.example.ui.components.ThemeSettingsCard
 import com.example.ui.theme.*
+import com.example.viewmodel.AuthViewModel
 
+/**
+ * Screen displaying the Registered Village Health Volunteer (อสม.) Profile and system action cards.
+ *
+ * Adheres to user identity requirements:
+ * - Displays the registered VHV's name, card ID, area, and health center.
+ * - Restricts developer credit strictly to the app startup splash screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperInfoScreen(
+    authViewModel: AuthViewModel = viewModel(),
     onNavigateToCloudSync: () -> Unit = {},
     onNavigateToHealthKnowledge: () -> Unit = {},
     onNavigateToPlanOfWork: () -> Unit = {},
     onNavigateToDiagnostic: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     onNavigateToUserProfile: () -> Unit = {},
-    onNavigateToVhvRegistration: () -> Unit = {}
+    onNavigateToVhvRegistration: () -> Unit = {},
+    onNavigateToOsmRp00002: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val scrollState = rememberScrollState()
     val isDark = isSystemInDarkTheme()
+
+    LaunchedEffect(Unit) {
+        authViewModel.loadSurveyorProfile(context)
+    }
+
+    val userProfile by authViewModel.userProfile.collectAsState()
+    val registeredName = userProfile?.displayName?.takeIf { it.isNotBlank() }
+        ?: userProfile?.safeDisplayName?.takeIf { !it.contains("ผู้ใช้ชั่วคราว") && !it.contains("Guest") }
+    val isRegistered = !registeredName.isNullOrBlank()
+    val displayVhvName = registeredName ?: "ยังไม่ได้ลงทะเบียน อสม."
 
     var showExitDialog by remember { mutableStateOf(false) }
 
@@ -85,7 +109,7 @@ fun DeveloperInfoScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "ข้อมูลสมาชิก อสม.",
+                        displayVhvName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -112,11 +136,11 @@ fun DeveloperInfoScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Profile Crest / Official Avatar
+            // VHV Profile Hero Crest / Avatar
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -125,47 +149,68 @@ fun DeveloperInfoScreen(
                     .background(HeroGradientBrush),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Filled.HealthAndSafety,
-                    contentDescription = null,
-                    tint = MintAccent,
-                    modifier = Modifier.size(56.dp)
-                )
+                if (!userProfile?.photoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = userProfile?.photoUrl,
+                        contentDescription = "รูปโปรไฟล์ อสม.",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.HealthAndSafety,
+                        contentDescription = null,
+                        tint = MintAccent,
+                        modifier = Modifier.size(56.dp)
+                    )
+                }
             }
             
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "วัชรพงษ์ พวงแจ่ม",
+                        text = displayVhvName,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        Icons.Filled.Verified,
-                        contentDescription = "ได้รับการรับรอง",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (isRegistered) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            Icons.Filled.Verified,
+                            contentDescription = "ลงทะเบียนเรียบร้อยแล้ว",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 Surface(
                     shape = RoundedCornerShape(100.dp),
-                    color = badgeBg
+                    color = if (isRegistered) badgeBg else MaterialTheme.colorScheme.errorContainer
                 ) {
                     Text(
-                        text = "อาสาสมัครสาธารณสุขประจำหมู่บ้าน (อสม.)",
+                        text = if (isRegistered) (userProfile?.roleTitle ?: "อาสาสมัครสาธารณสุขประจำหมู่บ้าน (อสม.)") else "ยังไม่ได้ลงทะเบียน อสม.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = badgeFg,
+                        color = if (isRegistered) badgeFg else MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                    )
+                }
+
+                if (isRegistered) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "เลขประจำตัว อสม.: ${userProfile?.vhvCardId ?: "1-2602-00888-00-1"} • ${userProfile?.villageName ?: "หมู่ 7 บ้านกร่างประตูวัง"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            // Registration Card (Primary Action)
+            // VHV Registration Card (Edit / Register)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -198,13 +243,13 @@ fun DeveloperInfoScreen(
                         }
                         Column {
                             Text(
-                                text = "ลงทะเบียน อสม. ใหม่ / แก้ไขข้อมูล",
+                                text = "ลงทะเบียน อสม. / แก้ไขข้อมูลโปรไฟล์",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                             Text(
-                                text = "จัดการข้อมูลประจำตัวและพื้นที่รับผิดชอบแบบสมบูรณ์",
+                                text = "จัดการข้อมูลประจำตัว รูปบัตร รูปโปรไฟล์ และพื้นที่รับผิดชอบ",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.9f)
                             )
@@ -214,7 +259,56 @@ fun DeveloperInfoScreen(
                 }
             }
 
-            // Theme Settings Card (Light / Dark / System mode switch)
+            // OSMRP00002 VHV Directory Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNavigateToOsmRp00002)
+                    .shadow(4.dp, RoundedCornerShape(22.dp), spotColor = CardShadowTint),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(EmeraldPrimary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Dataset, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        }
+                        Column {
+                            Text(
+                                text = "รายงานข้อมูล อสม. ต.ป่าขะ (OSMRP00002)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "ฐานข้อมูลรายชื่อ อสม. 13 หมู่บ้าน (thaiphc.net)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = EmeraldPrimary)
+                }
+            }
+
+            // Theme Settings Card
             ThemeSettingsCard()
 
             // User Profile Card
@@ -263,55 +357,6 @@ fun DeveloperInfoScreen(
                         }
                     }
                     Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-
-            // User Authentication / Login Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToLogin)
-                    .shadow(4.dp, RoundedCornerShape(22.dp), spotColor = CardShadowTint),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF0D9488)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Security, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
-                        }
-                        Column {
-                            Text(
-                                text = "เข้าสู่ระบบ / ยืนยันตัวตน (Authentication)",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                text = "จัดการบัญชี Google / Firebase Auth (User Identity)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
                 }
             }
 
@@ -413,7 +458,7 @@ fun DeveloperInfoScreen(
                 }
             }
 
-            // Health Knowledge & BP / BMI Guide Card
+            // Health Knowledge Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -461,108 +506,8 @@ fun DeveloperInfoScreen(
                     Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
-            
-            // Diagnostic Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToDiagnostic)
-                    .shadow(4.dp, RoundedCornerShape(22.dp), spotColor = CardShadowTint),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(MaterialTheme.colorScheme.tertiary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.size(26.dp))
-                        }
-                        Column {
-                            Text(
-                                text = "ตรวจสอบสถานะซิงค์ข้อมูล",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                text = "ตรวจสอบความผิดปกติของข้อมูล",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
-                }
-            }
 
-            // Export Template Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(22.dp), spotColor = EmeraldPrimary.copy(alpha = 0.5f))
-                    .clickable { 
-                        Toast.makeText(context, "ดาวน์โหลด SmartOSM_Template.xlsx สำเร็จ", Toast.LENGTH_SHORT).show()
-                    },
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(MintAccent),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Download, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(26.dp))
-                        }
-                        Column {
-                            Text(
-                                text = "ดาวน์โหลดแม่แบบ Excel",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "โหลดไฟล์ฟอร์มเปล่าเพื่อกรอกข้อมูล",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    Icon(Icons.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-
-            // Contact & Organization Card
+            // Contact & Area Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -588,7 +533,7 @@ fun DeveloperInfoScreen(
                             }
                         },
                         title = "พื้นที่รับผิดชอบ",
-                        text = "หมู่ 7 ตำบลป่าขะ อำเภอบ้านนา จังหวัดนครนายก"
+                        text = userProfile?.villageName ?: "หมู่ 7 บ้านกร่างประตูวัง ต.ป่าขะ อ.บ้านนา จ.นครนายก"
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -606,40 +551,42 @@ fun DeveloperInfoScreen(
                             }
                         },
                         title = "หน่วยบริการปฐมภูมิ",
-                        text = "รพ.สต.ป่าขะ"
+                        text = userProfile?.healthCenter ?: "รพ.สต.ป่าขะ"
                     )
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    userProfile?.phoneNumber?.takeIf { it.isNotBlank() }?.let { phoneNum ->
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:0991546800"))
-                                context.startActivity(dialIntent)
-                            }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .size(40.dp)
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(badgeBg),
-                            contentAlignment = Alignment.Center
+                                .clickable {
+                                    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNum"))
+                                    context.startActivity(dialIntent)
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.PhoneInTalk, contentDescription = null, tint = badgeFg, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("เบอร์โทรศัพท์ติดต่อ (แตะเพื่อโทร)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                text = "099-154-6800",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(badgeBg),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.PhoneInTalk, contentDescription = null, tint = badgeFg, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("เบอร์โทรศัพท์ติดต่อ (แตะเพื่อโทร)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = phoneNum,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -712,4 +659,3 @@ fun InfoRow(
         }
     }
 }
-

@@ -6,7 +6,10 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class, HealthScreening::class], version = 10, exportSchema = true)
+import com.example.data.vhv.VhvMemberDao
+import com.example.data.vhv.VhvMemberEntity
+
+@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class, HealthScreening::class, VhvMemberEntity::class], version = 11, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun personDao(): PersonDao
@@ -14,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun personHistoryDao(): PersonHistoryDao
     abstract fun populationEventDao(): PopulationEventDao
     abstract fun healthScreeningDao(): HealthScreeningDao
+    abstract fun vhvMemberDao(): VhvMemberDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) {} }
@@ -156,6 +160,35 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 """)
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_health_screenings_personId` ON `health_screenings` (`personId`)")
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `vhv_members` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `vhvCardId` TEXT NOT NULL,
+                        `nationalId` TEXT NOT NULL,
+                        `fullName` TEXT NOT NULL,
+                        `gender` TEXT NOT NULL,
+                        `phone` TEXT NOT NULL,
+                        `villageNo` TEXT NOT NULL,
+                        `villageName` TEXT NOT NULL,
+                        `subdistrict` TEXT NOT NULL,
+                        `district` TEXT NOT NULL,
+                        `province` TEXT NOT NULL,
+                        `healthCenter` TEXT NOT NULL,
+                        `roleTitle` TEXT NOT NULL,
+                        `assignedHouseholdsCount` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `reportSource` TEXT NOT NULL,
+                        `updatedTimestamp` INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_vhv_members_vhvCardId` ON `vhv_members` (`vhvCardId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_vhv_members_nationalId` ON `vhv_members` (`nationalId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_vhv_members_villageNo` ON `vhv_members` (`villageNo`)")
             }
         }
     }

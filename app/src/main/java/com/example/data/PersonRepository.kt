@@ -41,6 +41,8 @@ class PersonRepository(
     val totalPersonsCount: Flow<Int> = personDao.getTotalPersonsCount()
     val totalHouseholdsCount: Flow<Int> = householdDao.getTotalHouseholdsCount()
 
+    fun getVhvMemberDao() = db.vhvMemberDao()
+
     // Household Operations
     suspend fun insertHousehold(household: Household): Long {
         return householdDao.insert(household)

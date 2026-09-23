@@ -130,7 +130,9 @@ fun UserProfileScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "ข้อมูลโปรไฟล์ผู้ใช้งาน",
+                        text = userProfile?.displayName?.takeIf { it.isNotBlank() }
+                            ?: userProfile?.safeDisplayName?.takeIf { !it.contains("ผู้ใช้ชั่วคราว") }
+                            ?: "ข้อมูลโปรไฟล์ อสม.",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge
                     )

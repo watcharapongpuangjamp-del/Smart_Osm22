@@ -33,7 +33,11 @@ data class UserProfile(
     val subdistrict: String = "ต.ป่าขะ",
     val district: String = "อ.บ้านนา",
     val province: String = "จ.นครนายก",
-    val roleTitle: String = "อสม. ประจำหมู่บ้าน"
+    val roleTitle: String = "อสม. ประจำหมู่บ้าน",
+    val vhvCardId: String? = null,
+    val citizenId: String? = null,
+    val healthCenter: String? = null,
+    val vhvCardPhotoUrl: String? = null
 ) {
     /**
      * True if this profile represents an authenticated Firebase user with a valid UID.
@@ -99,7 +103,11 @@ data class UserProfile(
             district: String = "อ.บ้านนา",
             province: String = "จ.นครนายก",
             phoneNumberOverride: String? = null,
-            roleTitle: String = "อสม. ประจำหมู่บ้าน"
+            roleTitle: String = "อสม. ประจำหมู่บ้าน",
+            vhvCardId: String? = null,
+            citizenId: String? = null,
+            healthCenter: String? = null,
+            vhvCardPhotoUrl: String? = null
         ): UserProfile {
             val providerList = try {
                 user.providerData.map { it.providerId }
@@ -125,7 +133,11 @@ data class UserProfile(
                 subdistrict = subdistrict,
                 district = district,
                 province = province,
-                roleTitle = roleTitle
+                roleTitle = roleTitle,
+                vhvCardId = vhvCardId,
+                citizenId = citizenId,
+                healthCenter = healthCenter,
+                vhvCardPhotoUrl = vhvCardPhotoUrl
             )
         }
     }

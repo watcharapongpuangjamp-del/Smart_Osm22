@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -26,6 +27,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.example.ui.screens.*
 import com.example.viewmodel.PersonViewModel
+
+import com.example.data.vhv.VhvRepository
+import com.example.viewmodel.VhvDirectoryViewModel
 
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object Dashboard : BottomNavItem("dashboard", "หน้าแรก", Icons.Filled.Dashboard)
@@ -239,13 +243,15 @@ fun AppNavigation(
             }
             composable(BottomNavItem.Info.route) {
                 DeveloperInfoScreen(
+                    authViewModel = authViewModel,
                     onNavigateToCloudSync = { navController.navigate("cloud_sync") },
                     onNavigateToHealthKnowledge = { navController.navigate("health_knowledge") },
                     onNavigateToPlanOfWork = { navController.navigate("plan_of_work") },
                     onNavigateToDiagnostic = { navController.navigate("diagnostic") },
                     onNavigateToLogin = { navController.navigate("login") },
                     onNavigateToUserProfile = { navController.navigate("user_profile") },
-                    onNavigateToVhvRegistration = { navController.navigate("vhv_registration") }
+                    onNavigateToVhvRegistration = { navController.navigate("vhv_registration") },
+                    onNavigateToOsmRp00002 = { navController.navigate("osmrp_directory") }
                 )
             }
             composable("user_profile") {
@@ -254,6 +260,31 @@ fun AppNavigation(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLogin = { navController.navigate("login") },
                     onNavigateToVhvRegistration = { navController.navigate("vhv_registration") }
+                )
+            }
+            composable("vhv_registration") {
+                VhvRegistrationScreen(
+                    authViewModel = authViewModel,
+                    onRegistrationSuccess = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToOsmRp00002 = { navController.navigate("osmrp_directory") }
+                )
+            }
+            composable("osmrp_directory") {
+                val vhvRepository = remember { VhvRepository(repository.getVhvMemberDao()) }
+                val vhvViewModel: VhvDirectoryViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        return VhvDirectoryViewModel(vhvRepository) as T
+                    }
+                })
+                OsmRp00002Screen(
+                    vhvViewModel = vhvViewModel,
+                    authViewModel = authViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onRegistrationCompleted = {
+                        navController.popBackStack()
+                    }
                 )
             }
             composable("diagnostic") {
