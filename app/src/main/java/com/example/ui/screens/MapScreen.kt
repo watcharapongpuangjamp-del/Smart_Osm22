@@ -1443,7 +1443,6 @@ fun MapScreen(
                 }
             )
         }
-        }
 
         // Household Summary Bottom Sheet
         if (showHouseholdSheet && selectedHouse != null) {

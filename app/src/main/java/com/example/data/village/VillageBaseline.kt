@@ -1,33 +1,31 @@
 package com.example.data.village
 
-import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
+import org.json.JSONObject
 
 /**
  * Data class representing village baseline GIS & demographic data for Nakhon Nayok.
  */
-@JsonClass(generateAdapter = true)
 data class VillageBaseline(
-    @Json(name = "pcode") val provinceCode: String = "",
-    @Json(name = "pname") val provinceName: String = "",
-    @Json(name = "acode") val districtCode: String = "",
-    @Json(name = "aname") val districtName: String = "",
-    @Json(name = "tcode") val subdistrictCode: String = "",
-    @Json(name = "tname") val subdistrictName: String = "",
-    @Json(name = "mcode") val villageCode: String = "",
-    @Json(name = "mname") val villageName: String = "",
-    @Json(name = "oct_side15_lat") val latStr: String = "",
-    @Json(name = "oct_side15_lon") val lonStr: String = "",
-    @Json(name = "oct_side15_wmen") val womenCountStr: String = "",
-    @Json(name = "oct_side15_men") val menCountStr: String = "",
-    @Json(name = "oct_side15_total") val totalPopulationStr: String = "",
-    @Json(name = "oct_side15_house") val totalHouseCountStr: String = "",
-    @Json(name = "oct_side15_road_name2") val mainRoadName: String = "",
-    @Json(name = "oct_side15_local3_name") val localGovName: String = "",
-    @Json(name = "oct_side15_river_name") val riverName: String = "",
-    @Json(name = "oct_side15_dam_name") val damName: String = "",
-    @Json(name = "oct_side15_reservoir_name") val reservoirName: String = "",
-    @Json(name = "oct_side15_weir_name") val weirName: String = ""
+    val provinceCode: String = "",
+    val provinceName: String = "",
+    val districtCode: String = "",
+    val districtName: String = "",
+    val subdistrictCode: String = "",
+    val subdistrictName: String = "",
+    val villageCode: String = "",
+    val villageName: String = "",
+    val latStr: String = "",
+    val lonStr: String = "",
+    val womenCountStr: String = "",
+    val menCountStr: String = "",
+    val totalPopulationStr: String = "",
+    val totalHouseCountStr: String = "",
+    val mainRoadName: String = "",
+    val localGovName: String = "",
+    val riverName: String = "",
+    val damName: String = "",
+    val reservoirName: String = "",
+    val weirName: String = ""
 ) {
     val latitude: Double
         get() = latStr.toDoubleOrNull() ?: 14.2031
@@ -53,4 +51,31 @@ data class VillageBaseline(
             val parsed = last2.toIntOrNull()
             return if (parsed != null && parsed < 50) parsed.toString() else villageCode.takeLast(2)
         }
+
+    companion object {
+        fun fromJson(obj: JSONObject): VillageBaseline {
+            return VillageBaseline(
+                provinceCode = obj.optString("pcode"),
+                provinceName = obj.optString("pname"),
+                districtCode = obj.optString("acode"),
+                districtName = obj.optString("aname"),
+                subdistrictCode = obj.optString("tcode"),
+                subdistrictName = obj.optString("tname"),
+                villageCode = obj.optString("mcode"),
+                villageName = obj.optString("mname"),
+                latStr = obj.optString("oct_side15_lat"),
+                lonStr = obj.optString("oct_side15_lon"),
+                womenCountStr = obj.optString("oct_side15_wmen"),
+                menCountStr = obj.optString("oct_side15_men"),
+                totalPopulationStr = obj.optString("oct_side15_total"),
+                totalHouseCountStr = obj.optString("oct_side15_house"),
+                mainRoadName = obj.optString("oct_side15_road_name2"),
+                localGovName = obj.optString("oct_side15_local3_name"),
+                riverName = obj.optString("oct_side15_river_name"),
+                damName = obj.optString("oct_side15_dam_name"),
+                reservoirName = obj.optString("oct_side15_reservoir_name"),
+                weirName = obj.optString("oct_side15_weir_name")
+            )
+        }
+    }
 }

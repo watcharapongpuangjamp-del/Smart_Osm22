@@ -2,13 +2,12 @@ package com.example.data.village
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 
 /**
- * Repository to load and query Nakhon Nayok Province Village Baseline GIS dataset.
+ * Repository to load and query Nakhon Nayok Province Village Baseline GIS dataset using native JSON parsing.
  */
 class VillageBaselineRepository(private val context: Context) {
     companion object {
@@ -24,10 +23,14 @@ class VillageBaselineRepository(private val context: Context) {
 
         try {
             val jsonString = context.assets.open(ASSET_FILE).bufferedReader().use { it.readText() }
-            val listType = object : TypeToken<List<VillageBaseline>>() {}.type
-            val list: List<VillageBaseline> = Gson().fromJson(jsonString, listType) ?: emptyList()
+            val jsonArray = JSONArray(jsonString)
+            val list = ArrayList<VillageBaseline>(jsonArray.length())
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(VillageBaseline.fromJson(obj))
+            }
             cachedVillages = list
-            Log.i(TAG, "Loaded ${list.size} village baseline GIS records for Nakhon Nayok")
+            Log.i(TAG, "Loaded ${list.size} village baseline GIS records for Nakhon Nayok using native JSON parser")
             list
         } catch (e: Exception) {
             Log.e(TAG, "Error loading $ASSET_FILE", e)
