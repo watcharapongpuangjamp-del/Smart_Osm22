@@ -39,4 +39,7 @@ interface PersonDao {
     
     @Query("SELECT * FROM persons WHERE householdId = :householdId")
     fun getPersonsByHouseholdId(householdId: Long): Flow<List<Person>>
+
+    @Query("SELECT * FROM persons WHERE householdId = :householdId")
+    suspend fun getPersonsByHouseholdIdList(householdId: Long): List<Person>
 }

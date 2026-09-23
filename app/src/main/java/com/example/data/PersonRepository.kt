@@ -52,10 +52,28 @@ class PersonRepository(
         householdDao.update(household)
     }
 
+    suspend fun getPersonsByHouseholdIdList(householdId: Long): List<Person> {
+        return personDao.getPersonsByHouseholdIdList(householdId)
+    }
+
     suspend fun deleteHousehold(household: Household): Result<Unit> {
         return try {
             Log.d("PersonRepository", "Deleting household id: ${household.id}, uuid: ${household.householdUuid}, houseNo: ${household.houseNo}")
-            householdDao.delete(household)
+            db.withTransaction {
+                val persons = personDao.getPersonsByHouseholdIdList(household.id)
+                for (p in persons) {
+                    personDao.deletePerson(p)
+                    personHistoryDao.insert(
+                        PersonHistory(
+                            personId = p.id,
+                            action = "DELETE",
+                            oldValue = personAdapter.toJson(p),
+                            newValue = null
+                        )
+                    )
+                }
+                householdDao.delete(household)
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("PersonRepository", "Failed to delete household id: ${household.id}", e)

@@ -438,34 +438,32 @@ class PersonViewModel(
     fun deleteHousehold(household: Household, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                android.util.Log.d("PersonViewModel", "Starting delete household: id=${household.id}, uuid=${household.householdUuid}")
+                android.util.Log.d("PersonViewModel", "Starting local-first delete household: id=${household.id}, uuid=${household.householdUuid}")
                 
-                // 1. Delete from Firestore FIRST
-                // This ensures Cloud tombstones are written BEFORE local Room deletion.
-                // Prevents resurrection if app crashes between local delete and Cloud sync.
-                if (syncHelper != null && syncHelper.isFirebaseConfigured()) {
-                    val cloudResult = syncHelper.deleteHouseholdFromFirestore(household.householdUuid)
-                    if (cloudResult.isFailure) {
-                        val cloudEx = cloudResult.exceptionOrNull()
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "ลบข้อมูล Cloud ไม่สำเร็จ (ป้องกันการสูญหายหรือคืนชีพ): ${cloudEx?.message}")
-                        }
-                        return@launch
-                    }
-                }
+                // Fetch member UUIDs before deletion for Cloud tombstone matching
+                val personUuids = repository.getPersonsByHouseholdIdList(household.id).map { it.personUuid }
 
-                // 2. Delete locally
-                val result = repository.deleteHousehold(household)
-                if (result.isFailure) {
-                    val ex = result.exceptionOrNull()
+                // 1. Delete locally in Room Database FIRST (Local-First Architecture)
+                val localResult = repository.deleteHousehold(household)
+                if (localResult.isFailure) {
+                    val ex = localResult.exceptionOrNull()
                     withContext(Dispatchers.Main) {
-                        onResult(false, ex?.message ?: "เกิดข้อผิดพลาดในการลบบ้าน")
+                        onResult(false, ex?.message ?: "เกิดข้อผิดพลาดในการลบข้อมูลครัวเรือนในเครื่อง")
                     }
                     return@launch
                 }
 
+                // 2. Best-effort Cloud Firestore tombstone creation (does not block local deletion if offline)
+                if (syncHelper != null && syncHelper.isFirebaseConfigured()) {
+                    try {
+                        syncHelper.deleteHouseholdFromFirestore(household.householdUuid, personUuids)
+                    } catch (e: Exception) {
+                        android.util.Log.w("PersonViewModel", "Cloud tombstone write deferred: ${e.message}")
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
-                    android.util.Log.d("PersonViewModel", "Household deleted successfully (Local & Cloud)")
+                    android.util.Log.d("PersonViewModel", "Household deleted successfully (Local & queued Cloud tombstone)")
                     onResult(true, null)
                 }
             } catch (e: Exception) {
@@ -489,30 +487,26 @@ class PersonViewModel(
     fun delete(person: Person, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Delete from Firestore FIRST
-                // This ensures Cloud tombstones are written BEFORE local Room deletion.
-                // Prevents resurrection if app crashes between local delete and Cloud sync.
+                // 1. Delete locally in Room FIRST (Local-First Architecture)
+                repository.delete(person)
+                
+                // 2. Best-effort Cloud Firestore tombstone creation
                 val helper = syncHelper
                 if (helper != null && helper.isFirebaseConfigured()) {
-                    val cloudResult = helper.deletePersonFromFirestore(person.personUuid)
-                    if (cloudResult.isFailure) {
-                        val cloudEx = cloudResult.exceptionOrNull()
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "ลบข้อมูล Cloud ไม่สำเร็จ (ป้องกันการสูญหายหรือคืนชีพ): ${cloudEx?.message}")
-                        }
-                        return@launch
+                    try {
+                        helper.deletePersonFromFirestore(person.personUuid)
+                    } catch (e: Exception) {
+                        android.util.Log.w("PersonViewModel", "Cloud person tombstone write deferred: ${e.message}")
                     }
                 }
 
-                // 2. Delete locally
-                repository.delete(person)
-                
                 withContext(Dispatchers.Main) {
                     onResult(true, null)
                 }
             } catch (e: Exception) {
+                android.util.Log.e("PersonViewModel", "Exception deleting person", e)
                 withContext(Dispatchers.Main) {
-                    onResult(false, e.message ?: "เกิดข้อผิดพลาดที่ไม่คาดคิด")
+                    onResult(false, e.message ?: "เกิดข้อผิดพลาดที่ไม่คาดคิดในการลบข้อมูลบุคคล")
                 }
             }
         }

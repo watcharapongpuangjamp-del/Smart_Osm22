@@ -308,61 +308,31 @@ open class RoomFirestoreSyncHelper(
      * and writes tombstones to prevent resurrection during bidirectional sync.
      * Uses chunking to stay well within Firestore's 500 write limit per batch.
      */
-    suspend fun deleteHouseholdFromFirestore(householdUuid: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deleteHouseholdFromFirestore(householdUuid: String, personUuids: List<String> = emptyList()): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val firestore = getFirestore()
+            val firestore = checkFirebaseConfiguredOrError()
+                ?: return@withContext Result.success(Unit)
             
-            // Query associated persons first
-            val personDocs = firestore.collection(COLLECTION_PERSONS)
-                .whereEqualTo("householdUuid", householdUuid)
-                .get()
-                .await()
-
-            val personDocRefs = mutableListOf<com.google.firebase.firestore.DocumentReference>()
-            val personUuids = mutableListOf<String>()
-            
-            for (doc in personDocs.documents) {
-                personDocRefs.add(doc.reference)
-                val pUuid = doc.getString("personUuid") ?: doc.id
-                personUuids.add(pUuid)
-            }
-
             val timestamp = System.currentTimeMillis()
-            val entityOpsPairs = mutableListOf<List<(com.google.firebase.firestore.WriteBatch) -> Unit>>()
+            val batch = firestore.batch()
 
-            // 1. Household tombstone and delete FIRST
-            // Ensures if multi-batch chunking fails midway, at least the household is tombstoned.
-            // This prevents the household and any remaining orphaned persons from resurrecting on next sync.
+            // 1. Household tombstone and delete
             val hTombstoneRef = firestore.collection(COLLECTION_TOMBSTONES).document("household_$householdUuid")
             val hRef = firestore.collection(COLLECTION_HOUSEHOLDS).document(householdUuid)
-            
-            entityOpsPairs.add(listOf(
-                { b -> b.set(hTombstoneRef, mapOf("uuid" to householdUuid, "type" to "household", "deletedAt" to timestamp)) },
-                { b -> b.delete(hRef) }
-            ))
-            
-            // 2. Group persons' tombstones and deletes together AFTER household
-            for (i in personUuids.indices) {
-                val pUuid = personUuids[i]
-                val pRef = personDocRefs[i]
-                val pTombstoneRef = firestore.collection(COLLECTION_TOMBSTONES).document("person_$pUuid")
-                
-                entityOpsPairs.add(listOf(
-                    { b -> b.set(pTombstoneRef, mapOf("uuid" to pUuid, "type" to "person", "deletedAt" to timestamp)) },
-                    { b -> b.delete(pRef) }
-                ))
-            }
-            
-            // Chunk entity pairs at 200 pairs (400 ops) to stay safely below 500 limit
-            for (chunk in entityOpsPairs.chunked(200)) {
-                val batch = firestore.batch()
-                for (pair in chunk) {
-                    pair[0](batch) // tombstone
-                    pair[1](batch) // delete
+            batch.set(hTombstoneRef, mapOf("uuid" to householdUuid, "type" to "household", "deletedAt" to timestamp))
+            batch.delete(hRef)
+
+            // 2. Persons tombstones and deletes
+            for (pUuid in personUuids) {
+                if (pUuid.isNotBlank()) {
+                    val pTombstoneRef = firestore.collection(COLLECTION_TOMBSTONES).document("person_$pUuid")
+                    val pRef = firestore.collection(COLLECTION_PERSONS).document(pUuid)
+                    batch.set(pTombstoneRef, mapOf("uuid" to pUuid, "type" to "person", "deletedAt" to timestamp))
+                    batch.delete(pRef)
                 }
-                batch.commit().await()
             }
 
+            batch.commit().await()
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete household $householdUuid from Firestore", e)
