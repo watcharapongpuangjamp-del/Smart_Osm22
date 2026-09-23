@@ -48,7 +48,8 @@ class MainActivity : FragmentActivity() {
             AppDatabase.MIGRATION_5_6,
             AppDatabase.MIGRATION_6_7,
             AppDatabase.MIGRATION_7_8,
-            AppDatabase.MIGRATION_8_9
+            AppDatabase.MIGRATION_8_9,
+            AppDatabase.MIGRATION_9_10
         ).build()
         val repository = PersonRepository(db, db.personDao(), db.householdDao(), db.personHistoryDao(), db.populationEventDao())
         val excelImportUseCase = com.example.domain.ExcelImportUseCase(db)

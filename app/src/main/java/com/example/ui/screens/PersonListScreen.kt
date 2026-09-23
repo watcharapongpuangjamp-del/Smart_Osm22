@@ -29,6 +29,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.data.Gender
 import com.example.data.Person
 import com.example.data.PersonStatus
@@ -213,7 +217,16 @@ fun PersonListScreen(
                                 .padding(vertical = 48.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("ไม่พบรายชื่อที่ค้นหา", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.img_empty_state),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(120.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("ไม่พบรายชื่อที่ค้นหา", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 } else {

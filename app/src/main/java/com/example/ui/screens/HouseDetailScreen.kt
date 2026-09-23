@@ -49,7 +49,8 @@ fun HouseDetailScreen(
     onNavigateToMap: (Long) -> Unit = {},
     onAddMemberClick: () -> Unit,
     onEditMemberClick: (Long) -> Unit,
-    onHistoryClick: (Long) -> Unit
+    onHistoryClick: (Long) -> Unit,
+    onScreeningClick: (Long) -> Unit = {}
 ) {
     val householdWithPersons by viewModel.getHouseholdWithPersonsById(householdId).collectAsStateWithLifecycle(initialValue = null)
     
@@ -477,6 +478,12 @@ fun HouseDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                                 horizontalAlignment = Alignment.End
                             ) {
+                                IconButton(
+                                    onClick = { onScreeningClick(person.id) },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(Icons.Filled.Badge, contentDescription = "คัดกรองสุขภาพ", tint = GoldenAmber, modifier = Modifier.size(18.dp))
+                                }
                                 IconButton(
                                     onClick = { onHistoryClick(person.id) },
                                     modifier = Modifier.size(34.dp)

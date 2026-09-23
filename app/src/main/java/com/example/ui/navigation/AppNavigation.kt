@@ -315,7 +315,8 @@ fun AppNavigation(
                     onNavigateToMap = { houseId -> navController.navigate("map?targetHouseholdId=$houseId") },
                     onAddMemberClick = { navController.navigate("person_form/-1?householdId=$householdId") },
                     onEditMemberClick = { personId -> navController.navigate("person_form/$personId?householdId=$householdId") },
-                    onHistoryClick = { personId -> navController.navigate("person_history/$personId") }
+                    onHistoryClick = { personId -> navController.navigate("person_history/$personId") },
+                    onScreeningClick = { personId -> navController.navigate("health_screening/$personId") }
                 )
             }
 
@@ -357,6 +358,17 @@ fun AppNavigation(
             ) { backStackEntry ->
                 val personId = backStackEntry.arguments?.getLong("personId") ?: -1L
                 PersonHistoryScreen(
+                    viewModel = viewModel,
+                    personId = personId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "health_screening/{personId}",
+                arguments = listOf(navArgument("personId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val personId = backStackEntry.arguments?.getLong("personId") ?: -1L
+                HealthScreeningScreen(
                     viewModel = viewModel,
                     personId = personId,
                     onNavigateBack = { navController.popBackStack() }

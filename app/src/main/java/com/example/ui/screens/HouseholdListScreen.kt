@@ -40,6 +40,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.ui.components.ThemeQuickToggleButton
 import com.example.ui.theme.*
 import com.example.viewmodel.PersonViewModel
@@ -362,20 +366,12 @@ fun HouseholdListScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Filled.Villa,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Image(
+                                painter = painterResource(id = R.drawable.img_empty_state),
+                                contentDescription = null,
+                                modifier = Modifier.size(120.dp),
+                                contentScale = ContentScale.Fit
+                            )
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
                                 if (searchQuery.isBlank()) "ยังไม่มีข้อมูลครัวเรือน" else "ไม่พบข้อมูลบ้านเลขที่ \"$searchQuery\"",

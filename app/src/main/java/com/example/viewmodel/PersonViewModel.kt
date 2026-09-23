@@ -573,6 +573,21 @@ class PersonViewModel(
 
     fun getHistoryForPerson(personId: Long) = repository.getHistoryForPerson(personId)
 
+    // Health Screening Operations
+    fun getScreeningsForPerson(personId: Long) = repository.getScreeningsForPerson(personId)
+
+    fun insertScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
+        repository.insertScreening(screening)
+    }
+
+    fun updateScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
+        repository.updateScreening(screening)
+    }
+
+    fun deleteScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
+        repository.deleteScreening(screening)
+    }
+
     fun importExcelData(context: Context, uri: Uri) {
         if (_isImporting.value) return
         

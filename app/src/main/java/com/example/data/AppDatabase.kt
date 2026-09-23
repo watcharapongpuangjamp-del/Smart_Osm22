@@ -6,13 +6,14 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class], version = 9, exportSchema = true)
+@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class, HealthScreening::class], version = 10, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun personDao(): PersonDao
     abstract fun householdDao(): HouseholdDao
     abstract fun personHistoryDao(): PersonHistoryDao
     abstract fun populationEventDao(): PopulationEventDao
+    abstract fun healthScreeningDao(): HealthScreeningDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) {} }
@@ -127,6 +128,34 @@ abstract class AppDatabase : RoomDatabase() {
                 """)
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_population_events_householdId` ON `population_events` (`householdId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_population_events_personId` ON `population_events` (`personId`)")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `health_screenings` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `screeningUuid` TEXT NOT NULL,
+                        `personId` INTEGER NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `weight` REAL,
+                        `height` REAL,
+                        `bmi` REAL,
+                        `systolic` INTEGER,
+                        `diastolic` INTEGER,
+                        `bloodSugar` INTEGER,
+                        `pulse` INTEGER,
+                        `temperature` REAL,
+                        `oxygenSaturation` INTEGER,
+                        `note` TEXT,
+                        `vhvId` TEXT,
+                        `vhvName` TEXT,
+                        `dataStatus` TEXT NOT NULL,
+                        FOREIGN KEY(`personId`) REFERENCES `persons`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_health_screenings_personId` ON `health_screenings` (`personId`)")
             }
         }
     }

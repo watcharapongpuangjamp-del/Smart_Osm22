@@ -25,7 +25,8 @@ class PersonRepository(
     private val personDao: PersonDao,
     private val householdDao: HouseholdDao,
     private val personHistoryDao: PersonHistoryDao,
-    private val populationEventDao: PopulationEventDao = db.populationEventDao()
+    private val populationEventDao: PopulationEventDao = db.populationEventDao(),
+    private val healthScreeningDao: HealthScreeningDao = db.healthScreeningDao()
 ) {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -159,6 +160,27 @@ class PersonRepository(
 
     fun getEventsByHouseholdId(householdId: Long): Flow<List<PopulationEvent>> {
         return populationEventDao.getEventsByHouseholdId(householdId)
+    }
+
+    // Health Screening Operations
+    fun getScreeningsForPerson(personId: Long): Flow<List<HealthScreening>> {
+        return healthScreeningDao.getScreeningsForPerson(personId)
+    }
+
+    suspend fun insertScreening(screening: HealthScreening) {
+        healthScreeningDao.insert(screening)
+    }
+
+    suspend fun updateScreening(screening: HealthScreening) {
+        healthScreeningDao.update(screening)
+    }
+
+    suspend fun deleteScreening(screening: HealthScreening) {
+        healthScreeningDao.delete(screening)
+    }
+
+    suspend fun getScreeningByUuid(uuid: String): HealthScreening? {
+        return healthScreeningDao.getScreeningByUuid(uuid)
     }
 
     suspend fun getAllHouseholds(): List<Household> = householdDao.getAllHouseholds()
