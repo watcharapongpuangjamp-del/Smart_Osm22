@@ -9,6 +9,7 @@ import com.example.domain.ImportAction
 import com.example.viewmodel.PersonViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -108,8 +109,17 @@ class LastModifiedRegressionTest {
         viewModel.update(editCandidate)
         testDispatcher.scheduler.advanceUntilIdle()
 
+        // Non-blocking loop to allow background thread/Room transaction to execute and commit
+        var updatedPerson: Person? = null
+        var attempts = 0
+        while (attempts < 50) {
+            updatedPerson = db.personDao().getPersonById(pId)
+            if (updatedPerson?.fullName == "นาย หลังแก้ไขเสร็จ") break
+            delay(10)
+            attempts++
+        }
+
         // 3. Assert: Verify in Room that old lastModified < new lastModified
-        val updatedPerson = db.personDao().getPersonById(pId)
         assertNotNull(updatedPerson)
         assertEquals("นาย หลังแก้ไขเสร็จ", updatedPerson?.fullName)
         assertTrue(
@@ -143,8 +153,17 @@ class LastModifiedRegressionTest {
         viewModel.updateHousehold(editCandidate)
         testDispatcher.scheduler.advanceUntilIdle()
 
+        // Non-blocking loop to allow background thread update to execute and commit
+        var updatedHousehold: Household? = null
+        var attempts = 0
+        while (attempts < 50) {
+            updatedHousehold = db.householdDao().getHouseholdById(hId)
+            if (updatedHousehold?.houseNo == "20/99") break
+            delay(10)
+            attempts++
+        }
+
         // 3. Assert: Verify in Room that old lastModified < new lastModified
-        val updatedHousehold = db.householdDao().getHouseholdById(hId)
         assertNotNull(updatedHousehold)
         assertEquals("20/99", updatedHousehold?.houseNo)
         assertTrue(
