@@ -101,6 +101,15 @@ fun OsmRp00002Screen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            vhvViewModel.triggerCloudSync(context)
+                            Toast.makeText(context, "เริ่มต้นซิงค์ข้อมูล อสม. สู่ Firestore ในเบื้องหลัง...", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.testTag("btn_osmrp_sync")
+                    ) {
+                        Icon(Icons.Filled.Sync, contentDescription = "ซิงค์ข้อมูล อสม.", tint = Color.White)
+                    }
                     ThemeQuickToggleButton(iconTint = Color.White)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

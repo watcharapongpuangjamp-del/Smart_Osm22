@@ -60,6 +60,10 @@ class MainActivity : FragmentActivity() {
             firestoreProvider = { FirestoreManager.getInstance() }
         )
 
+        // Schedule background workers for offline sync
+        com.example.data.sync.HouseholdSyncScheduler.schedulePeriodicSync(applicationContext)
+        com.example.data.sync.OsmSyncScheduler.schedulePeriodicSync(applicationContext)
+
         val factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(PersonViewModel::class.java)) {

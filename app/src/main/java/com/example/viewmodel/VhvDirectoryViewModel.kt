@@ -51,4 +51,8 @@ class VhvDirectoryViewModel(
         _searchQuery.value = ""
         _selectedVillage.value = "ALL"
     }
+
+    fun triggerCloudSync(context: android.content.Context) {
+        com.example.data.sync.OsmSyncScheduler.triggerOneTimeSync(context)
+    }
 }
