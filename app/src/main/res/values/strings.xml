@@ -13,4 +13,8 @@
     <string name="note_label">หมายเหตุ / คำแนะนำ</string>
     <string name="save_button">บันทึก</string>
     <string name="cancel_button">ยกเลิก</string>
+    <string name="ai_advisor_title">AI ที่ปรึกษาสุขภาพ</string>
+    <string name="ai_get_advice">รับคำแนะนำจาก AI</string>
+    <string name="ai_loading">กำลังวิเคราะห์ข้อมูลด้วย Gemini Pro...</string>
+    <string name="ai_disclaimer">คำแนะนำนี้มาจาก AI โปรดใช้ควบคู่กับดุลยพินิจทางการแพทย์</string>
 </resources>

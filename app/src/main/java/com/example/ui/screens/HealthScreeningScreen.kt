@@ -34,6 +34,13 @@ import com.patrykandpatrick.vico.core.entry.FloatEntry
 import com.example.data.HealthScreening
 import com.example.data.Person
 import com.example.viewmodel.PersonViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.viewmodel.GeminiViewModel
+import com.example.viewmodel.GeminiUiState
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.foundation.rememberScrollState
+import java.time.LocalDate
+import java.time.Period
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,19 +49,22 @@ import java.util.*
 fun HealthScreeningScreen(
     viewModel: PersonViewModel,
     personId: Long,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    geminiViewModel: GeminiViewModel = viewModel()
 ) {
     var person by remember { mutableStateOf<Person?>(null) }
     val screenings by viewModel.getScreeningsForPerson(personId).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAiAdvice by remember { mutableStateOf(false) }
+    val geminiUiState by geminiViewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(personId) {
         person = viewModel.getPersonById(personId)
     }
 
     val weightEntries = remember(screenings) {
-        screenings.reversed().filter { it.weight != null }.mapIndexed { index, screening ->
-            FloatEntry(index.toFloat(), screening.weight!!.toFloat())
+        screenings.reversed().filter { it.weight != null }.mapIndexed { index, item ->
+            FloatEntry(index.toFloat(), item.weight!!.toFloat())
         }
     }
     val chartModel = remember(weightEntries) {
@@ -152,10 +162,52 @@ fun HealthScreeningScreen(
                                 }
                             }
                         }
+
+                        item {
+                            val latest = screenings.firstOrNull()
+                            if (latest != null) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(16.dp),
+                                    onClick = {
+                                        person?.let { p ->
+                                            val age = if (p.birthDate != null) {
+                                                Period.between(p.birthDate, LocalDate.now()).years
+                                            } else 0
+                                            
+                                            geminiViewModel.generateHealthAdvice(
+                                                personName = p.fullName,
+                                                age = age,
+                                                gender = p.gender.name,
+                                                weightKg = latest.weight ?: 0.0,
+                                                heightCm = latest.height ?: 0.0,
+                                                systolic = latest.systolic ?: 0,
+                                                diastolic = latest.diastolic ?: 0,
+                                                sugar = (latest.bloodSugar ?: 0).toDouble()
+                                            )
+                                            showAiAdvice = true
+                                        }
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(stringResource(R.string.ai_get_advice), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                            Text("วิเคราะห์แนวโน้มสุขภาพด้วย Gemini Pro", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     
-                    items(screenings) { screening ->
-                        ScreeningCard(screening = screening, onDelete = { viewModel.deleteScreening(screening) })
+                    items(screenings) { item ->
+                        ScreeningCard(screening = item, onDelete = { viewModel.deleteScreening(item) })
                     }
                 }
             }
@@ -187,7 +239,68 @@ fun HealthScreeningScreen(
                 }
             )
         }
+
+        if (showAiAdvice) {
+            AiAdviceDialog(
+                uiState = geminiUiState,
+                onDismiss = {
+                    showAiAdvice = false
+                    geminiViewModel.clearState()
+                }
+            )
+        }
     }
+}
+
+@Composable
+fun AiAdviceDialog(
+    uiState: GeminiUiState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.ai_advisor_title))
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                when (uiState) {
+                    is GeminiUiState.Loading -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(stringResource(R.string.ai_loading))
+                        }
+                    }
+                    is GeminiUiState.Success -> {
+                        Text(uiState.response, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            stringResource(R.string.ai_disclaimer),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                    is GeminiUiState.Error -> {
+                        Text("เกิดข้อผิดพลาด: ${uiState.message}", color = MaterialTheme.colorScheme.error)
+                    }
+                    else -> {}
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("ตกลง")
+            }
+        }
+    )
 }
 
 @Composable

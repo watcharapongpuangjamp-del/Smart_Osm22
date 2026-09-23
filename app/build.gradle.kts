@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+  alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -147,6 +148,8 @@ dependencies {
   implementation(libs.play.services.location)
   implementation(libs.osmdroid.android)
   implementation(libs.retrofit)
+  implementation(libs.retrofit.serialization)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.poi)
   implementation(libs.poi.ooxml)
   implementation(libs.vico.compose)
