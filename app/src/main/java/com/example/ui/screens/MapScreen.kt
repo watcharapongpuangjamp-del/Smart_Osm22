@@ -152,6 +152,16 @@ fun MapScreen(
     val locationPermissionState = rememberPermissionState(permission = Manifest.permission.ACCESS_FINE_LOCATION)
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
+    // Village Baseline GIS Data State
+    val villageBaselineRepository = remember { com.example.data.village.VillageBaselineRepository(context) }
+    var villageBaselineList by remember { mutableStateOf<List<com.example.data.village.VillageBaseline>>(emptyList()) }
+    var showVillageMarkers by remember { mutableStateOf(true) }
+    var selectedVillageBaseline by remember { mutableStateOf<com.example.data.village.VillageBaseline?>(null) }
+
+    LaunchedEffect(Unit) {
+        villageBaselineList = villageBaselineRepository.getAllVillages()
+    }
+
     var mapViewRef by remember { mutableStateOf<MapView?>(null) }
     var selectedHouse by remember { mutableStateOf<HouseSummary?>(null) }
     var selectedEvent by remember { mutableStateOf<PopulationEvent?>(null) }
@@ -506,6 +516,36 @@ fun MapScreen(
                         }
                     }
 
+                    // Add Village Baseline GIS Markers when enabled
+                    if (showVillageMarkers && villageBaselineList.isNotEmpty()) {
+                        villageBaselineList.forEach { v ->
+                            val vLat = v.latitude
+                            val vLon = v.longitude
+                            if (vLat != 0.0 && vLon != 0.0) {
+                                val vMarker = Marker(mapView).apply {
+                                    position = GeoPoint(vLat, vLon)
+                                    title = "หมู่บ้าน${v.villageName}"
+                                    snippet = "ต.${v.subdistrictName} อ.${v.districtName} • เป้าหมาย: ${v.totalHouseCount} หลัง (${v.totalPopulation} คน)"
+                                    icon = createVillageMarkerDrawable(
+                                        context = context,
+                                        villageName = v.villageName,
+                                        houseCount = v.totalHouseCount,
+                                        isSelected = selectedVillageBaseline?.villageCode == v.villageCode
+                                    )
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                }
+                                vMarker.setOnMarkerClickListener { _, _ ->
+                                    if (!isPinningMode) {
+                                        selectedVillageBaseline = v
+                                        mapView.controller.animateTo(GeoPoint(vLat, vLon))
+                                    }
+                                    true
+                                }
+                                mapView.overlays.add(vMarker)
+                            }
+                        }
+                    }
+
                     // Add pending pin marker when in pinning mode
                     if (isPinningMode && pendingPinLocation != null) {
                         val pendingMarker = Marker(mapView).apply {
@@ -724,6 +764,23 @@ fun MapScreen(
                             } else null,
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = EmeraldPrimary,
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White
+                            )
+                        )
+                    }
+
+                    // Village Baseline GIS chip
+                    item {
+                        FilterChip(
+                            selected = showVillageMarkers,
+                            onClick = { showVillageMarkers = !showVillageMarkers },
+                            label = { Text("หมุดศูนย์กลางหมู่บ้าน (${villageBaselineList.size})") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.LocationCity, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF1E3A8A),
                                 selectedLabelColor = Color.White,
                                 selectedLeadingIconColor = Color.White
                             )
@@ -1261,6 +1318,131 @@ fun MapScreen(
                     }
                 }
             }
+        }
+
+        // Village Baseline GIS Information Dialog
+        if (selectedVillageBaseline != null) {
+            val village = selectedVillageBaseline!!
+            AlertDialog(
+                onDismissRequest = { selectedVillageBaseline = null },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.LocationCity,
+                        contentDescription = null,
+                        tint = EmeraldPrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "ข้อมูล GIS หมู่บ้าน${village.villageName}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = EmeraldPrimary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "ที่ตั้ง: หมู่บ้าน${village.villageName} (หมู่ ${village.villageNo})",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "ตำบล${village.subdistrictName} อำเภอ${village.districtName} จังหวัด${village.provinceName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Target Statistics
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("หลังคาเรือนเป้าหมาย", style = MaterialTheme.typography.labelSmall)
+                                    Text("${village.totalHouseCount} หลัง", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                                }
+                            }
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("ประชากรรวมเป้าหมาย", style = MaterialTheme.typography.labelSmall)
+                                    Text("${village.totalPopulation} คน", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                                    Text("(ชาย ${village.menCount} / หญิง ${village.womenCount})", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        // Infrastructure Details
+                        if (village.mainRoadName.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Filled.AddRoad, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(16.dp))
+                                Text("ถนนสายหลัก: ${village.mainRoadName}", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        if (village.riverName.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Filled.Water, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                Text("แหล่งน้ำ/สายน้ำ: ${village.riverName}", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        if (village.damName.isNotBlank() || village.reservoirName.isNotBlank() || village.weirName.isNotBlank()) {
+                            val waterAsset = listOf(village.damName, village.reservoirName, village.weirName).filter { it.isNotBlank() }.joinToString(", ")
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Filled.Pool, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                Text("ชลประทาน/ฝาย: $waterAsset", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        if (village.localGovName.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Filled.AccountBalance, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(16.dp))
+                                Text("อปท. ในพื้นที่: ${village.localGovName}", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            mapViewRef?.controller?.animateTo(GeoPoint(village.latitude, village.longitude))
+                            mapViewRef?.controller?.setZoom(16.0)
+                            selectedVillageBaseline = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                    ) {
+                        Icon(Icons.Filled.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("ซูมไปยังจุดนี้")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { selectedVillageBaseline = null }) {
+                        Text("ปิด")
+                    }
+                }
+            )
+        }
         }
 
         // Household Summary Bottom Sheet
