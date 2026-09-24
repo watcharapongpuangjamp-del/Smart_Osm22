@@ -87,6 +87,13 @@ enum class PopulationFilter(val label: String) {
     LOW_DENSITY("1-2 คน")
 }
 
+enum class HealthRiskLevel(val label: String, val colorHex: String, val rgb: IntArray) {
+    HIGH("เสี่ยงสูง", "#DC2626", intArrayOf(220, 38, 38)),
+    MEDIUM("เสี่ยงปานกลาง", "#EAB308", intArrayOf(234, 179, 8)),
+    LOW("ปกติ/ความเสี่ยงต่ำ", "#16A34A", intArrayOf(22, 163, 74)),
+    UNSCREENED("ยังไม่ได้ตรวจคัดกรอง", "#9CA3AF", intArrayOf(156, 163, 175))
+}
+
 // Custom Tile Sources for Satellite, Terrain 3D, and Google Hybrid
 val ESRI_SATELLITE_TILE_SOURCE: ITileSource = object : OnlineTileSourceBase(
     "EsriSatellite",
@@ -147,6 +154,7 @@ fun MapScreen(
     val houseSummary by viewModel.houseSummary.collectAsStateWithLifecycle()
     val allEvents by viewModel.allEvents.collectAsStateWithLifecycle()
     val allHouseholdsWithPersons by viewModel.allHouseholdsWithPersons.collectAsStateWithLifecycle()
+    val allScreenings by viewModel.allScreenings.collectAsStateWithLifecycle()
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
 
     val locationPermissionState = rememberPermissionState(permission = Manifest.permission.ACCESS_FINE_LOCATION)
@@ -177,6 +185,53 @@ fun MapScreen(
     var selectedMarkerStyle by remember { mutableStateOf(MarkerStyle.PIN_3D_HOUSE) }
     var showLayerMenu by remember { mutableStateOf(false) }
     var isClusteringEnabled by remember { mutableStateOf(true) }
+    var isHealthRiskMode by remember { mutableStateOf(false) }
+    var showResponsibilityPolygons by remember { mutableStateOf(false) }
+
+    // Map of householdId to its computed HealthRiskLevel
+    val householdRiskMap = remember(allHouseholdsWithPersons, allScreenings) {
+        val map = mutableMapOf<Long, HealthRiskLevel>()
+        allHouseholdsWithPersons.forEach { hp ->
+            val householdId = hp.household.id
+            val persons = hp.persons
+            if (persons.isEmpty()) {
+                map[householdId] = HealthRiskLevel.UNSCREENED
+            } else {
+                var hasHighRisk = false
+                var hasMediumRisk = false
+                var hasScreening = false
+                persons.forEach { person ->
+                    val personScreenings = allScreenings.filter { s -> s.personId == person.id }
+                    if (personScreenings.isNotEmpty()) {
+                        hasScreening = true
+                        val latest = personScreenings.maxByOrNull { it.timestamp }
+                        if (latest != null) {
+                            val sys = latest.systolic ?: 0
+                            val dia = latest.diastolic ?: 0
+                            val sugar = latest.bloodSugar ?: 0
+                            val temp = latest.temperature ?: 0.0
+                            val oxy = latest.oxygenSaturation ?: 100
+                            val bmiVal = latest.bmi ?: 0.0
+                            
+                            // High risk: high fever (e.g. dengue/infection indicator), severe hypertension, diabetic, low oxygen, or obese
+                            if (sys >= 140 || dia >= 90 || sugar >= 126 || temp >= 38.5 || oxy < 95 || bmiVal >= 30.0) {
+                                hasHighRisk = true
+                            } else if (sys in 120..139 || dia in 80..89 || sugar in 100..125 || temp in 37.5..38.4 || bmiVal >= 25.0) {
+                                hasMediumRisk = true
+                            }
+                        }
+                    }
+                }
+                map[householdId] = when {
+                    hasHighRisk -> HealthRiskLevel.HIGH
+                    hasMediumRisk -> HealthRiskLevel.MEDIUM
+                    hasScreening -> HealthRiskLevel.LOW
+                    else -> HealthRiskLevel.UNSCREENED
+                }
+            }
+        }
+        map
+    }
 
     // Pinning state
     var isPinningMode by remember { mutableStateOf(false) }
@@ -429,7 +484,7 @@ fun MapScreen(
                         mapView.setTileSource(desiredTileSource)
                     }
 
-                    mapView.overlays.removeAll { it is Marker || it is MapEventsOverlay }
+                    mapView.overlays.removeAll { it is Marker || it is MapEventsOverlay || it is org.osmdroid.views.overlay.Polygon }
 
                     // Add Touch Events Overlay for interactive map tapping and long press
                     val mapEventsReceiver = object : MapEventsReceiver {
@@ -459,11 +514,19 @@ fun MapScreen(
                                 val house = cluster.houses.first()
                                 val lat = house.latitude ?: return@forEach
                                 val lon = house.longitude ?: return@forEach
+                                val riskColor = if (isHealthRiskMode) {
+                                    val level = householdRiskMap[house.householdId] ?: HealthRiskLevel.UNSCREENED
+                                    android.graphics.Color.rgb(level.rgb[0], level.rgb[1], level.rgb[2])
+                                } else null
+
                                 val marker = Marker(mapView).apply {
                                     position = GeoPoint(lat, lon)
                                     title = "บ้านเลขที่ ${house.houseNo}"
                                     snippet = "ประชากร ${house.totalMembers} คน (ชาย ${house.males}, หญิง ${house.females})"
-                                    subDescription = if (house.elderly > 0) "ผู้สูงอายุ: ${house.elderly} คน" else null
+                                    subDescription = if (isHealthRiskMode) {
+                                        val level = householdRiskMap[house.householdId] ?: HealthRiskLevel.UNSCREENED
+                                        "สถานะกลุ่มเสี่ยง: ${level.label}"
+                                    } else if (house.elderly > 0) "ผู้สูงอายุ: ${house.elderly} คน" else null
                                     icon = createHouseholdMarkerDrawable(
                                         context = context,
                                         totalMembers = house.totalMembers,
@@ -471,7 +534,8 @@ fun MapScreen(
                                         hasChildren = house.children > 0,
                                         dataStatus = house.dataStatus,
                                         isSelected = selectedHouse?.householdId == house.householdId,
-                                        markerStyle = selectedMarkerStyle
+                                        markerStyle = selectedMarkerStyle,
+                                        healthRiskColor = riskColor
                                     )
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                 }
@@ -553,6 +617,37 @@ fun MapScreen(
                                     true
                                 }
                                 mapView.overlays.add(vMarker)
+                            }
+                        }
+                    }
+
+                    // Add Village Responsibility Area Polygon Overlays when enabled (Option D)
+                    if (showResponsibilityPolygons && villageBaselineList.isNotEmpty()) {
+                        villageBaselineList.forEach { v ->
+                            val vLat = v.latitude
+                            val vLon = v.longitude
+                            if (vLat != 0.0 && vLon != 0.0) {
+                                val circlePoints = createCirclePolygonPoints(GeoPoint(vLat, vLon), 350.0)
+                                val poly = org.osmdroid.views.overlay.Polygon(mapView).apply {
+                                    points = circlePoints
+                                    val isSelected = selectedVillageBaseline?.villageCode == v.villageCode
+                                    val fillColor = if (isSelected) {
+                                        android.graphics.Color.argb(40, 59, 130, 246)
+                                    } else {
+                                        android.graphics.Color.argb(20, 16, 185, 129)
+                                    }
+                                    val strokeColor = if (isSelected) {
+                                        android.graphics.Color.rgb(59, 130, 246)
+                                    } else {
+                                        android.graphics.Color.rgb(16, 185, 129)
+                                    }
+                                    getFillPaint().color = fillColor
+                                    getOutlinePaint().color = strokeColor
+                                    getOutlinePaint().strokeWidth = if (isSelected) 3.5f else 1.8f
+                                    title = "ขอบเขตพื้นที่รับผิดชอบ: หมู่บ้าน${v.villageName}"
+                                    snippet = "พื้นที่ดูแล อสม. รัศมี 350 เมตรรอบศูนย์กลางหมู่บ้าน"
+                                }
+                                mapView.overlays.add(poly)
                             }
                         }
                     }
@@ -1771,8 +1866,12 @@ fun MapScreen(
         MapLayerSelectionDialog(
             currentLayer = selectedMapLayer,
             currentMarkerStyle = selectedMarkerStyle,
+            isHealthRiskMode = isHealthRiskMode,
+            showResponsibilityPolygons = showResponsibilityPolygons,
             onSelectLayer = { selectedMapLayer = it },
             onSelectMarkerStyle = { selectedMarkerStyle = it },
+            onToggleHealthRiskMode = { isHealthRiskMode = it },
+            onToggleResponsibilityPolygons = { showResponsibilityPolygons = it },
             onDismiss = { showLayerMenu = false }
         )
     }
@@ -1782,8 +1881,12 @@ fun MapScreen(
 fun MapLayerSelectionDialog(
     currentLayer: MapLayerType,
     currentMarkerStyle: MarkerStyle,
+    isHealthRiskMode: Boolean,
+    showResponsibilityPolygons: Boolean,
     onSelectLayer: (MapLayerType) -> Unit,
     onSelectMarkerStyle: (MarkerStyle) -> Unit,
+    onToggleHealthRiskMode: (Boolean) -> Unit,
+    onToggleResponsibilityPolygons: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -1934,6 +2037,108 @@ fun MapLayerSelectionDialog(
                                     color = if (isSelected) EmeraldPrimary else MaterialTheme.colorScheme.onSurface
                                 )
                             }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                Text("ฟีเจอร์แผนที่ขั้นสูง (Advanced GIS Features)", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Option A: Health Risk Overlay Mode
+                    Surface(
+                        onClick = { onToggleHealthRiskMode(!isHealthRiskMode) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isHealthRiskMode) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(1.dp, if (isHealthRiskMode) Color(0xFFEF4444) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isHealthRiskMode) Color(0xFFEF4444) else MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Favorite,
+                                    contentDescription = null,
+                                    tint = if (isHealthRiskMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "แผนที่วิเคราะห์กลุ่มเสี่ยงสุขภาพ (Health Risk Map)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isHealthRiskMode) Color(0xFF991B1B) else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "จำแนกสีหมุดตามความเสี่ยง (แดง = เสี่ยงสูง, เหลือง = ปานกลาง, เขียว = ปกติ, เทา = ยังไม่ได้รับการตรวจ)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = isHealthRiskMode,
+                                onCheckedChange = onToggleHealthRiskMode,
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFEF4444))
+                            )
+                        }
+                    }
+
+                    // Option D: Responsible Area Polygon Overlay
+                    Surface(
+                        onClick = { onToggleResponsibilityPolygons(!showResponsibilityPolygons) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (showResponsibilityPolygons) Color(0xFFEFF6FF) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(1.dp, if (showResponsibilityPolygons) Color(0xFF3B82F6) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (showResponsibilityPolygons) Color(0xFF3B82F6) else MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Adjust,
+                                    contentDescription = null,
+                                    tint = if (showResponsibilityPolygons) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "ขอบเขตพื้นที่รับผิดชอบ อสม. (Village Boundaries)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (showResponsibilityPolygons) Color(0xFF1E40AF) else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "แสดงวงรัศมีขอบเขตการดูแลของแต่ละหมู่บ้าน เพื่อวางแผนพื้นที่และป้องกันข้อมูลซ้ำซ้อน",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = showResponsibilityPolygons,
+                                onCheckedChange = onToggleResponsibilityPolygons,
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
                         }
                     }
                 }
@@ -2256,7 +2461,8 @@ fun createHouseholdMarkerDrawable(
     hasChildren: Boolean,
     dataStatus: DataStatus = DataStatus.VERIFIED,
     isSelected: Boolean,
-    markerStyle: MarkerStyle = MarkerStyle.PIN_3D_HOUSE
+    markerStyle: MarkerStyle = MarkerStyle.PIN_3D_HOUSE,
+    healthRiskColor: Int? = null
 ): Drawable {
     val density = context.resources.displayMetrics.density
     val width = (44 * density).toInt()
@@ -2266,8 +2472,9 @@ fun createHouseholdMarkerDrawable(
 
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    // Color based on population density and vulnerability
+    // Color based on population density, vulnerability, or health risk
     val pinColor = when {
+        healthRiskColor != null -> healthRiskColor
         isSelected -> android.graphics.Color.rgb(16, 185, 129) // Emerald
         hasElderly -> android.graphics.Color.rgb(124, 58, 237) // Purple for Elderly
         totalMembers >= 4 -> android.graphics.Color.rgb(234, 88, 12) // Orange for High Density
@@ -2764,5 +2971,34 @@ fun createUserLocationMarkerDrawable(context: Context): Drawable {
     canvas.drawCircle(size / 2f, size / 2f, 4 * density, paint)
 
     return BitmapDrawable(context.resources, bitmap)
+}
+
+/**
+ * Generates circle boundary points around a center GeoPoint for OsmDroid Polygon rendering.
+ */
+fun createCirclePolygonPoints(center: GeoPoint, radiusMeters: Double): List<GeoPoint> {
+    val points = mutableListOf<GeoPoint>()
+    val earthRadius = 6378137.0 // in meters
+    val latRad = Math.toRadians(center.latitude)
+    val lonRad = Math.toRadians(center.longitude)
+    val dR = radiusMeters / earthRadius
+
+    for (i in 0 until 16) {
+        val bearing = 2.0 * Math.PI * i / 16.0
+        val targetLatRad = Math.asin(
+            Math.sin(latRad) * Math.cos(dR) +
+            Math.cos(latRad) * Math.sin(dR) * Math.cos(bearing)
+        )
+        val targetLonRad = lonRad + Math.atan2(
+            Math.sin(bearing) * Math.sin(dR) * Math.cos(latRad),
+            Math.cos(dR) - Math.sin(latRad) * Math.sin(targetLatRad)
+        )
+        points.add(GeoPoint(Math.toDegrees(targetLatRad), Math.toDegrees(targetLonRad)))
+    }
+    // Close the polygon
+    if (points.isNotEmpty()) {
+        points.add(points.first())
+    }
+    return points
 }
 

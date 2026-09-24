@@ -237,11 +237,18 @@ class PersonViewModel(
     private val _importResult = kotlinx.coroutines.flow.MutableStateFlow<com.example.domain.ExcelImportResult?>(null)
     val importResult: StateFlow<com.example.domain.ExcelImportResult?> = _importResult
     
+    private val _importPlan = kotlinx.coroutines.flow.MutableStateFlow<com.example.domain.ImportPlan?>(null)
+    val importPlan: StateFlow<com.example.domain.ImportPlan?> = _importPlan
+
     private val _isImporting = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
 
     fun clearImportResult() {
         _importResult.value = null
+    }
+
+    fun clearImportPlan() {
+        _importPlan.value = null
     }
 
     fun importWorkspaceExcelFile(fileName: String = "ทะเบียนประชากร_หมู่8_รายงานสรุป-1.xlsx", onComplete: (Boolean, String) -> Unit) {
@@ -273,17 +280,42 @@ class PersonViewModel(
 
                 val inputStream = file.inputStream()
                 val plan = excelImportUseCase.createImportPlan(inputStream)
-                val result = excelImportUseCase.commitImportPlan(plan)
-                _importResult.value = result
+                _importPlan.value = plan
                 withContext(Dispatchers.Main) {
                     _isImporting.value = false
-                    onComplete(true, "นำเข้าข้อมูลจาก ${file.name} สำเร็จ (${result.successCount} รายการ)")
+                    onComplete(true, "วิเคราะห์โครงสร้างไฟล์และสร้างแผนการนำเข้าเรียบร้อย")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     _isImporting.value = false
                     onComplete(false, "เกิดข้อผิดพลาดในการนำเข้า: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun commitCurrentImportPlan(onComplete: (Boolean, String) -> Unit) {
+        val plan = _importPlan.value
+        if (plan == null) {
+            onComplete(false, "ไม่พบแผนการนำเข้าที่กำลังรอดำเนินการ")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            _isImporting.value = true
+            try {
+                val result = excelImportUseCase.commitImportPlan(plan)
+                _importResult.value = result
+                _importPlan.value = null
+                withContext(Dispatchers.Main) {
+                    _isImporting.value = false
+                    onComplete(true, "นำเข้าข้อมูลสำเร็จ (${result.successCount} รายการ)")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    _isImporting.value = false
+                    onComplete(false, "เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${e.message}")
                 }
             }
         }
@@ -311,6 +343,12 @@ class PersonViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = 0
+    )
+
+    val allScreenings: StateFlow<List<com.example.data.HealthScreening>> = repository.getAllScreenings().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
     )
 
     fun insertHousehold(household: Household, onComplete: (Long) -> Unit) {
@@ -588,8 +626,8 @@ class PersonViewModel(
             try {
                 inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream != null) {
-                    val result = excelImportUseCase(inputStream)
-                    _importResult.value = result
+                    val plan = excelImportUseCase.createImportPlan(inputStream)
+                    _importPlan.value = plan
                 } else {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "ไม่สามารถเปิดไฟล์ได้", Toast.LENGTH_LONG).show()

@@ -187,6 +187,10 @@ class PersonRepository(
         return healthScreeningDao.getScreeningsForPerson(personId)
     }
 
+    fun getAllScreenings(): Flow<List<HealthScreening>> {
+        return healthScreeningDao.getAllScreenings()
+    }
+
     suspend fun insertScreening(screening: HealthScreening) {
         healthScreeningDao.insert(screening)
     }
