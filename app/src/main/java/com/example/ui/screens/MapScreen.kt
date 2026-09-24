@@ -195,7 +195,7 @@ fun MapScreen(
     val mappedHouses = remember(houseSummary) { houseSummary.filter { it.latitude != null && it.longitude != null } }
     val unmappedHouses = remember(houseSummary) { houseSummary.filter { it.latitude == null || it.longitude == null } }
 
-    val filteredHouses = remember(mappedHouses, activeFilter, searchQuery) {
+    val filteredHouses = remember(mappedHouses, activeFilter, searchQuery, allHouseholdsWithPersons) {
         val byFilter = when (activeFilter) {
             PopulationFilter.ALL -> mappedHouses
             PopulationFilter.HIGH_DENSITY -> mappedHouses.filter { it.totalMembers >= 4 }
@@ -204,7 +204,18 @@ fun MapScreen(
             PopulationFilter.LOW_DENSITY -> mappedHouses.filter { it.totalMembers in 1..2 }
         }
         if (searchQuery.isBlank()) byFilter
-        else byFilter.filter { it.houseNo.contains(searchQuery.trim(), ignoreCase = true) }
+        else {
+            val trimmedQuery = searchQuery.trim()
+            byFilter.filter { house ->
+                val matchesHouseNo = house.houseNo.contains(trimmedQuery, ignoreCase = true)
+                val matchesHead = house.headName?.contains(trimmedQuery, ignoreCase = true) ?: false
+                val matchesMembers = allHouseholdsWithPersons
+                    .find { it.household.id == house.householdId }
+                    ?.persons
+                    ?.any { it.fullName.contains(trimmedQuery, ignoreCase = true) } ?: false
+                matchesHouseNo || matchesHead || matchesMembers
+            }
+        }
     }
 
     val currentZoom = mapViewRef?.zoomLevelDouble ?: 15.0
@@ -726,7 +737,7 @@ fun MapScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("ค้นหาบ้านเลขที่บนแผนที่...") },
+                            placeholder = { Text("ค้นบ้านเลขที่, เจ้าบ้าน หรือชื่อสมาชิก...") },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
