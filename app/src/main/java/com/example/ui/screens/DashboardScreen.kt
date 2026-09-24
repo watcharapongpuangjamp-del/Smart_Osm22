@@ -707,22 +707,16 @@ fun DashboardScreen(
                                 }
                             } else {
                                 val standardGroups = listOf(
-                                    "0-5",
-                                    "6-12",
-                                    "13-17",
-                                    "18-24",
-                                    "25-39",
-                                    "40-59",
-                                    "60+"
+                                    "0-5 ปี",
+                                    "6-24 ปี",
+                                    "25-59 ปี",
+                                    "60 ปีขึ้นไป"
                                 )
                                 val dataList = listOf(
-                                    ageGroupSummary["เด็กเล็ก (0-5)"] ?: 0,
-                                    ageGroupSummary["เด็กวัยเรียน (6-12)"] ?: 0,
-                                    ageGroupSummary["วัยรุ่น (13-17)"] ?: 0,
-                                    ageGroupSummary["วัยหนุ่มสาว (18-24)"] ?: 0,
-                                    ageGroupSummary["วัยทำงานตอนต้น (25-39)"] ?: 0,
-                                    ageGroupSummary["วัยทำงานตอนกลาง (40-59)"] ?: 0,
-                                    ageGroupSummary["ผู้สูงอายุ (60+)"] ?: 0
+                                    ageGroupSummary["เด็กปฐมวัย (0-5 ปี)"] ?: 0,
+                                    ageGroupSummary["เด็กโตและวัยรุ่น (6-24 ปี)"] ?: 0,
+                                    ageGroupSummary["วัยทำงาน (25-59 ปี)"] ?: 0,
+                                    ageGroupSummary["ผู้สูงอายุ (60 ปีขึ้นไป)"] ?: 0
                                 )
 
                                 val chartEntryModel = com.patrykandpatrick.vico.core.entry.entryModelOf(*dataList.map { it.toFloat() }.toTypedArray())
