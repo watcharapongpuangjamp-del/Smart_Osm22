@@ -23,6 +23,8 @@ data class HealthScreening(
     val id: Long = 0,
     val screeningUuid: String = UUID.randomUUID().toString(),
     val personId: Long,
+    val personUuid: String = "",
+    val villageNo: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val weight: Double? = null,
     val height: Double? = null,
@@ -30,11 +32,13 @@ data class HealthScreening(
     val systolic: Int? = null,
     val diastolic: Int? = null,
     val bloodSugar: Int? = null,
+    val bloodSugarType: String = "UNKNOWN",
     val pulse: Int? = null,
     val temperature: Double? = null,
     val oxygenSaturation: Int? = null,
     val note: String? = null,
     val vhvId: String? = null,
     val vhvName: String? = null,
-    val dataStatus: DataStatus = DataStatus.NEEDS_REVIEW
+    val dataStatus: DataStatus = DataStatus.NEEDS_REVIEW,
+    val lastModified: Long = System.currentTimeMillis()
 )

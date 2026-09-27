@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.vhv.VhvMemberDao
 import com.example.data.vhv.VhvMemberEntity
 
-@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class, HealthScreening::class, VhvMemberEntity::class], version = 11, exportSchema = true)
+@Database(entities = [Person::class, Household::class, PersonHistory::class, PopulationEvent::class, HealthScreening::class, VhvMemberEntity::class], version = 12, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun personDao(): PersonDao
@@ -191,5 +191,18 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_vhv_members_villageNo` ON `vhv_members` (`villageNo`)")
             }
         }
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE health_screenings ADD COLUMN personUuid TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE health_screenings ADD COLUMN villageNo TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE health_screenings ADD COLUMN bloodSugarType TEXT NOT NULL DEFAULT 'UNKNOWN'")
+                db.execSQL("ALTER TABLE health_screenings ADD COLUMN lastModified INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE health_screenings SET personUuid = COALESCE((SELECT personUuid FROM persons WHERE persons.id = health_screenings.personId), ''), villageNo = COALESCE((SELECT households.villageNo FROM households JOIN persons ON persons.householdId = households.id WHERE persons.id = health_screenings.personId), ''), lastModified = CASE WHEN timestamp > 0 THEN timestamp ELSE strftime('%s','now') * 1000 END")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_health_screenings_screeningUuid ON health_screenings (screeningUuid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_health_screenings_personUuid ON health_screenings (personUuid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_health_screenings_villageNo ON health_screenings (villageNo)")
+            }
+        }
+
     }
 }

@@ -1,35 +1,18 @@
 package com.example.data.vhv
 
-import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 /**
- * Repository for managing VHV Members directory sourced from ThaiPHC Report OSMRP00002.
+ * Repository for managing the current VHV member directory.
+ *
+ * The previous OSMRP00002 seed dataset was removed because it is incomplete
+ * and no longer matches the current official VHV records.
  */
 class VhvRepository(
     private val vhvMemberDao: VhvMemberDao
 ) {
-    companion object {
-        private const val TAG = "VhvRepository"
-    }
-
-    /**
-     * Ensures the database is seeded with official OSMRP00002 data for Tambon Pa Kha.
-     */
-    suspend fun seedOsmRp00002DataIfEmpty() = withContext(Dispatchers.IO) {
-        try {
-            val count = vhvMemberDao.getVhvCount()
-            if (count == 0) {
-                Log.d(TAG, "Seeding OSMRP00002 VHV records for Tambon Pa Kha...")
-                vhvMemberDao.insertAll(OsmRp00002Data.PA_KHA_VHV_MEMBERS)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to seed OSMRP00002 VHV records", e)
-        }
-    }
 
     fun getAllVhvMembersFlow(): Flow<List<VhvMemberEntity>> {
         return vhvMemberDao.getAllVhvMembersFlow()

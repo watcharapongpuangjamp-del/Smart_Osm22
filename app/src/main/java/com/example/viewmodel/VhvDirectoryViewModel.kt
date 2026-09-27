@@ -18,12 +18,6 @@ class VhvDirectoryViewModel(
     private val _selectedVillage = MutableStateFlow("ALL")
     val selectedVillage: StateFlow<String> = _selectedVillage.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            vhvRepository.seedOsmRp00002DataIfEmpty()
-        }
-    }
-
     @OptIn(ExperimentalCoroutinesApi::class)
     val vhvMembers: StateFlow<List<VhvMemberEntity>> = combine(_searchQuery, _selectedVillage) { query, village ->
         Pair(query, village)

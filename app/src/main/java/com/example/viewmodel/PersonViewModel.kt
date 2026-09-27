@@ -45,164 +45,9 @@ class PersonViewModel(
     private val syncHelper: RoomFirestoreSyncHelper? = null
 ) : ViewModel() {
 
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                if (com.example.BuildConfig.DEBUG && repository.getAllHouseholds().isEmpty()) {
-                    seedBaselineData()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
+    // Production data is created only through real user input/import/sync.
+    // No debug baseline records are seeded into the Room database.
 
-    private suspend fun seedBaselineData() {
-        val h1Id = repository.insertHousehold(
-            Household(
-                householdUuid = java.util.UUID.randomUUID().toString(),
-                houseNo = "45/1",
-                villageNo = "8",
-                subdistrict = "ป่าขะ",
-                district = "บ้านนา",
-                province = "นครนายก",
-                latitude = 14.2155,
-                longitude = 101.0723,
-                dataStatus = DataStatus.VERIFIED
-            )
-        )
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h1Id,
-            nationalId = "3260100123451",
-            fullName = "นายสมชาย ใจดี",
-            gender = Gender.MALE,
-            birthDate = LocalDate.of(1975, 4, 12),
-            houseStatus = HouseholdRole.HEAD,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h1Id,
-            nationalId = "3260100123452",
-            fullName = "นางสาวสมหญิง ใจดี",
-            gender = Gender.FEMALE,
-            birthDate = LocalDate.of(1978, 9, 25),
-            houseStatus = HouseholdRole.RESIDENT,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h1Id,
-            nationalId = "3260100123453",
-            fullName = "เด็กชายต้นกล้า ใจดี",
-            gender = Gender.MALE,
-            birthDate = LocalDate.of(2015, 6, 10),
-            houseStatus = HouseholdRole.RESIDENT,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-
-        // Seed some sample population events
-        repository.insertEvent(
-            PopulationEvent(
-                type = PopulationEventType.BIRTH,
-                title = "เด็กชายสมหวัง ใจดี",
-                description = "เกิดเมื่อเวลา 08:30 น. รพ.บ้านนา",
-                latitude = 14.2160,
-                longitude = 101.0730,
-                householdId = h1Id,
-                personName = "เด็กชายสมหวัง ใจดี"
-            )
-        )
-        repository.insertEvent(
-            PopulationEvent(
-                type = PopulationEventType.HEALTH_CHECK,
-                title = "ตรวจคัดกรองเบาหวาน/ความดัน",
-                description = "ผลการตรวจปกติ ความดัน 120/80",
-                latitude = 14.2150,
-                longitude = 101.0715,
-                householdId = h1Id,
-                personName = "นายสมชาย ใจดี"
-            )
-        )
-
-        val h2Id = repository.insertHousehold(
-            Household(
-                householdUuid = java.util.UUID.randomUUID().toString(),
-                houseNo = "88",
-                villageNo = "8",
-                subdistrict = "ป่าขะ",
-                district = "บ้านนา",
-                province = "นครนายก",
-                latitude = 14.2162,
-                longitude = 101.0741,
-                dataStatus = DataStatus.VERIFIED
-            )
-        )
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h2Id,
-            nationalId = "3260100987651",
-            fullName = "นายประเสริฐ มั่งมี",
-            gender = Gender.MALE,
-            birthDate = LocalDate.of(1960, 12, 1),
-            houseStatus = HouseholdRole.HEAD,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h2Id,
-            nationalId = "3260100987652",
-            fullName = "นางจันทร์ มั่งมี",
-            gender = Gender.FEMALE,
-            birthDate = LocalDate.of(1963, 3, 15),
-            houseStatus = HouseholdRole.RESIDENT,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-
-        val h3Id = repository.insertHousehold(
-            Household(
-                householdUuid = java.util.UUID.randomUUID().toString(),
-                houseNo = "12/4",
-                villageNo = "8",
-                subdistrict = "ป่าขะ",
-                district = "บ้านนา",
-                province = "นครนายก",
-                latitude = 14.2140,
-                longitude = 101.0705,
-                dataStatus = DataStatus.VERIFIED
-            )
-        )
-
-        repository.insertEvent(
-            PopulationEvent(
-                type = PopulationEventType.MOVE_IN,
-                title = "ย้ายเข้าจากกรุงเทพฯ",
-                description = "ย้ายเข้าเพื่อมาดูแลบิดามารดา",
-                latitude = 14.2135,
-                longitude = 101.0695,
-                householdId = h3Id,
-                personName = "นางสาววิลาวัลย์ มั่งมี"
-            )
-        )
-        repository.insert(Person(
-            personUuid = java.util.UUID.randomUUID().toString(),
-            householdId = h3Id,
-            nationalId = "3260100555441",
-            fullName = "นางสาวกัลยา รักสงบ",
-            gender = Gender.FEMALE,
-            birthDate = LocalDate.of(1992, 8, 19),
-            houseStatus = HouseholdRole.HEAD,
-            personStatus = PersonStatus.ALIVE,
-            dataStatus = DataStatus.VERIFIED
-        ))
-    }
-    
     val syncState: StateFlow<SyncState> = syncHelper?.syncState
         ?: kotlinx.coroutines.flow.MutableStateFlow(SyncState.Idle)
 
@@ -605,18 +450,51 @@ class PersonViewModel(
     // Health Screening Operations
     fun getScreeningsForPerson(personId: Long) = repository.getScreeningsForPerson(personId)
 
-    fun insertScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
-        repository.insertScreening(screening)
+    fun insertScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch(Dispatchers.IO) {
+        val person = repository.getPersonById(screening.personId)
+        val household = person?.let { repository.getHouseholdById(it.householdId) }
+        val enriched = screening.copy(
+            personUuid = person?.personUuid ?: screening.personUuid,
+            villageNo = household?.villageNo ?: screening.villageNo,
+            lastModified = System.currentTimeMillis()
+        )
+        repository.insertScreening(enriched)
     }
 
-    fun updateScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
-        repository.updateScreening(screening)
+    fun updateScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch(Dispatchers.IO) {
+        val person = repository.getPersonById(screening.personId)
+        val household = person?.let { repository.getHouseholdById(it.householdId) }
+        val enriched = screening.copy(
+            personUuid = person?.personUuid ?: screening.personUuid,
+            villageNo = household?.villageNo ?: screening.villageNo,
+            lastModified = System.currentTimeMillis()
+        )
+        repository.updateScreening(enriched)
     }
 
-    fun deleteScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch {
-        repository.deleteScreening(screening)
-    }
+    fun deleteScreening(screening: com.example.data.HealthScreening) = viewModelScope.launch(Dispatchers.IO) {
+        try {
+            val helper = syncHelper
+            val cloudConfigured = helper != null && helper.isFirebaseConfigured()
+            val villageNo = repository.getPersonById(screening.personId)?.let { person ->
+                repository.getHouseholdById(person.householdId)?.villageNo
+            } ?: screening.villageNo
 
+            // When Cloud is configured, create the tombstone/delete first. This prevents
+            // a failed Cloud operation from leaving a deleted local record able to resurrect.
+            if (cloudConfigured) {
+                val cloudResult = helper!!.deleteHealthScreeningFromFirestore(screening.screeningUuid, villageNo)
+                if (cloudResult.isFailure) {
+                    android.util.Log.w("PersonViewModel", "Health screening Cloud delete failed; local delete aborted: ${cloudResult.exceptionOrNull()?.message}")
+                    return@launch
+                }
+            }
+
+            repository.deleteScreening(screening)
+        } catch (e: Exception) {
+            android.util.Log.e("PersonViewModel", "Exception deleting health screening", e)
+        }
+    }
     fun importExcelData(context: Context, uri: Uri) {
         if (_isImporting.value) return
         

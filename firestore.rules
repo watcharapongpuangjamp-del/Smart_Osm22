@@ -1,53 +1,93 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to get current user's profile data
-    function getUserProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-    
-    // Helper function to check if the user is authenticated
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if user has access to a specific village
+
+    function isNonAnonymous() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider != "anonymous";
+    }
+
+    // Server/admin-controlled authorization source.
+    // Clients must not be able to create or modify these documents.
+    function hasVillageAssignment() {
+      return isNonAnonymous() &&
+        exists(/databases/$(database)/documents/village_assignments/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/village_assignments/$(request.auth.uid)).data.active == true;
+    }
+
+    function assignedVillageNo() {
+      return get(/databases/$(database)/documents/village_assignments/$(request.auth.uid)).data.villageNo;
+    }
+
     function hasVillageAccess(villageNo) {
-      return isAuthenticated() && getUserProfile().villageNo == villageNo;
+      return hasVillageAssignment() && assignedVillageNo() == villageNo;
     }
 
-    // 1. Users collection
+    // 1. User profile.
+    // villageNo in the profile is informational only; authorization comes
+    // exclusively from village_assignments/{uid}.
     match /users/{uid} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == uid;
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+
+      allow create: if isNonAnonymous() &&
+        request.auth.uid == uid &&
+        hasVillageAssignment() &&
+        request.resource.data.villageNo == assignedVillageNo();
+
+      allow update: if isNonAnonymous() &&
+        request.auth.uid == uid &&
+        hasVillageAssignment() &&
+        request.resource.data.villageNo == assignedVillageNo() &&
+        resource.data.villageNo == assignedVillageNo();
+
+      allow delete: if false;
     }
 
-    // 2. Households collection
+    // 2. Households
     match /households/{householdUuid} {
-      allow read, write: if isAuthenticated() && 
+      allow read, write: if
         (resource == null || hasVillageAccess(resource.data.villageNo)) &&
         (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
     }
 
-    // 3. Persons collection
+    // 3. Persons
     match /persons/{personUuid} {
-      allow read, write: if isAuthenticated() && 
+      allow read, write: if
         (resource == null || hasVillageAccess(resource.data.villageNo)) &&
         (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
     }
 
-    // 4. Tombstones collection
+    // 4. Tombstones
     match /tombstones/{tombstoneId} {
-      allow read, write: if isAuthenticated() && 
+      allow read, write: if
         (resource == null || hasVillageAccess(resource.data.villageNo)) &&
         (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
     }
-    
-    // 5. VHV Members collection
+
+    // 5. Health screenings
+    match /health_screenings/{screeningUuid} {
+      allow read, write: if
+        (resource == null || hasVillageAccess(resource.data.villageNo)) &&
+        (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
+    }
+
+    // 6. VHV members
     match /vhv_members/{memberId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (resource == null || hasVillageAccess(resource.data.villageNo)) && (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
+      allow read, write: if
+        (resource == null || hasVillageAccess(resource.data.villageNo)) &&
+        (request.resource == null || hasVillageAccess(request.resource.data.villageNo));
+    }
+
+    // 7. Village assignments.
+    // No client-side access. Provisioning must be done by an admin/server.
+    match /village_assignments/{uid} {
+      // A user may read only their own server-provisioned assignment.
+      // No client may create, update, or delete an assignment.
+      allow read: if isNonAnonymous() && request.auth.uid == uid;
+      allow write: if false;
     }
   }
 }

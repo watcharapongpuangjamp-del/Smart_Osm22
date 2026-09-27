@@ -203,9 +203,15 @@ class PersonRepository(
         healthScreeningDao.delete(screening)
     }
 
+    suspend fun deleteScreeningByUuid(uuid: String) {
+        healthScreeningDao.deleteByUuid(uuid)
+    }
+
     suspend fun getScreeningByUuid(uuid: String): HealthScreening? {
         return healthScreeningDao.getScreeningByUuid(uuid)
     }
+
+    suspend fun getAllScreeningsList(): List<HealthScreening> = healthScreeningDao.getAllScreeningsList()
 
     suspend fun getAllHouseholds(): List<Household> = householdDao.getAllHouseholds()
     suspend fun getAllPersonsList(): List<Person> = personDao.getAllPersonsList()
