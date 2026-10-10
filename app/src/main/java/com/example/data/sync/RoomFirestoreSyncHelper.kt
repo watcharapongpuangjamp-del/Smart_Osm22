@@ -26,6 +26,29 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
+ * Reads tombstones using a fail-closed policy.
+ *
+ * A failed read must never be treated as an empty tombstone set: doing so can
+ * resurrect records that were deleted on another device. Cancellation is
+ * propagated unchanged so coroutine cancellation remains cooperative.
+ */
+internal suspend fun <T> readTombstonesFailClosed(
+    operation: String,
+    reader: suspend () -> T
+): T {
+    return try {
+        reader()
+    } catch (ce: CancellationException) {
+        throw ce
+    } catch (e: Exception) {
+        throw IllegalStateException(
+            "อ่านรายการ Tombstones ไม่สำเร็จในขั้นตอน $operation; ยกเลิกการซิงก์เพื่อป้องกันข้อมูลที่ถูกลบกลับมา",
+            e
+        )
+    }
+}
+
+/**
  * Await extension for Firebase Tasks in coroutines.
  */
 suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont ->
@@ -125,8 +148,14 @@ open class RoomFirestoreSyncHelper(
             if (auth.currentUser == null) {
                 auth.signInAnonymously().await()
             }
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (e: Exception) {
-            Log.d(TAG, "Firebase anonymous auth note: ${e.message}")
+            Log.w(TAG, "Firebase authentication failed; aborting sync: ${e.message}")
+            throw IllegalStateException(
+                "ไม่สามารถยืนยันตัวตนกับ Firebase ได้ จึงยกเลิกการซิงก์",
+                e
+            )
         }
     }
 
@@ -215,14 +244,11 @@ open class RoomFirestoreSyncHelper(
 
             // Fetch tombstones to prevent re-uploading deleted records
             // Must be filtered by villageNo to satisfy security rules
-            val deletedUuids = try {
+            val deletedUuids = readTombstonesFailClosed("Room → Firestore") {
                 val tombstoneDocs = firestore.collection(COLLECTION_TOMBSTONES)
                     .whereEqualTo("villageNo", activeVillageNo)
                     .get().await()
                 tombstoneDocs.documents.mapNotNull { it.getString("uuid") }.toSet()
-            } catch (e: Exception) {
-                Log.w(TAG, "Tombstone fetch note: ${e.message}")
-                emptySet()
             }
 
             val households = repository.getAllHouseholds()
@@ -558,14 +584,11 @@ open class RoomFirestoreSyncHelper(
 
             // Fetch tombstones
             // Must be filtered by villageNo to satisfy security rules
-            val deletedUuids = try {
+            val deletedUuids = readTombstonesFailClosed("Firestore → Room") {
                 val tombstoneDocs = firestore.collection(COLLECTION_TOMBSTONES)
                     .whereEqualTo("villageNo", activeVillageNo)
                     .get().await()
                 tombstoneDocs.documents.mapNotNull { it.getString("uuid") }.toSet()
-            } catch (e: Exception) {
-                Log.w(TAG, "Tombstone fetch in syncFirestoreToRoom note: ${e.message}")
-                emptySet()
             }
 
             // Remove stale local Room records that have been deleted in Cloud
