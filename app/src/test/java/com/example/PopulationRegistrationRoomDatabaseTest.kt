@@ -241,7 +241,7 @@ class PopulationRegistrationRoomDatabaseTest {
             personId = pId,
             personName = "ทารกแรกเกิด"
         )
-        val eventId = eventDao.insert(event)
+        val eventId = eventDao.insertEvent(event)
         assertTrue(eventId > 0)
 
         val eventsForHousehold = eventDao.getEventsByHouseholdId(hId).first()
