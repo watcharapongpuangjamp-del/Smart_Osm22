@@ -3,7 +3,6 @@ package com.example.data.sync
 import android.content.Context
 import android.util.Log
 import com.example.data.firestore.FirestoreManager
-import com.example.data.vhv.OsmRp00002Data
 import com.example.data.vhv.VhvMemberDao
 import com.example.data.vhv.VhvMemberEntity
 import com.google.firebase.firestore.FirebaseFirestore
@@ -13,11 +12,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 /**
- * Helper class for synchronizing Public Health Volunteer (OSM / VHV) data
- * sourced from OSMRP00002 between local Room database and Cloud Firestore.
+ * Helper class for synchronizing locally registered VHV member records
+ * between the Room database and Cloud Firestore.
+ *
+ * The retired OSMRP00002 seed dataset is intentionally not referenced here.
  */
 class VhvFirestoreSyncHelper(
     private val context: Context,
@@ -59,24 +61,9 @@ class VhvFirestoreSyncHelper(
     suspend fun syncOsmData(): Result<SyncResult> = withContext(Dispatchers.IO) {
         _syncState.value = SyncState.Syncing("กำลังซิงค์ข้อมูล อสม. กับระบบ Cloud...")
         try {
-            // 1. Ensure local seed data is loaded first regardless of cloud status
-            var localCount = vhvMemberDao.getVhvCount()
-            if (localCount == 0) {
-                Log.i(TAG, "Local VHV database empty. Seeding OSMRP00002 dataset...")
-                try {
-                    vhvMemberDao.insertAll(OsmRp00002Data.PA_KHA_VHV_MEMBERS)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Local seed note: ${e.message}")
-                }
-                localCount = vhvMemberDao.getVhvCount()
-            }
+            // Room is the local source of truth; do not recreate retired seed records.
+            val localMembers = vhvMemberDao.getAllVhvMembers()
 
-            var localMembers = vhvMemberDao.getAllVhvMembers()
-            if (localMembers.isEmpty()) {
-                localMembers = OsmRp00002Data.PA_KHA_VHV_MEMBERS
-            }
-
-            // Attempt Cloud Firestore sync, but fallback gracefully if permission or network fails
             var syncedCount = localMembers.size
             try {
                 ensureAuth()
@@ -124,7 +111,7 @@ class VhvFirestoreSyncHelper(
                         batch.commit().await()
                     }
 
-                    // Pull remote
+                    // Pull remote records after the local batch has completed.
                     val snapshot = collectionRef.get().await()
                     val remoteMembers = mutableListOf<VhvMemberEntity>()
                     for (doc in snapshot.documents) {
@@ -156,10 +143,14 @@ class VhvFirestoreSyncHelper(
                     if (remoteMembers.isNotEmpty()) {
                         vhvMemberDao.insertAll(remoteMembers)
                     }
+                    syncedCount = maxOf(syncedCount, remoteMembers.size)
                     Log.i(TAG, "VHV Cloud Firestore sync completed successfully")
                 }
             } catch (cloudEx: Exception) {
-                Log.w(TAG, "Cloud Firestore sync skipped or restricted (PERMISSION_DENIED/Offline): ${cloudEx.message}. Using local Room database.")
+                Log.w(
+                    TAG,
+                    "Cloud Firestore sync skipped or restricted (PERMISSION_DENIED/Offline): ${cloudEx.message}"
+                )
             }
 
             val result = SyncResult(
@@ -175,8 +166,8 @@ class VhvFirestoreSyncHelper(
         } catch (e: Exception) {
             Log.w(TAG, "VHV sync completed with local fallback: ${e.localizedMessage}")
             val result = SyncResult(
-                personsSynced = 13,
-                message = "โหลดข้อมูล อสม. จากฐานข้อมูลในเครื่องสำเร็จ",
+                personsSynced = 0,
+                message = formatFirestoreError(e),
                 timestamp = System.currentTimeMillis()
             )
             _syncState.value = SyncState.Success(result)
