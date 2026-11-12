@@ -153,7 +153,7 @@ class HouseholdPinningTest {
             longitude = null
         ))
 
-        // Add members to h1: 1 elderly, 1 adult female, 1 child
+        // Add members to h1: 1 elderly, 1 adult female, 1 school-age child
         val birthElderly = LocalDate.now().minusYears(65)
         val birthChild = LocalDate.now().minusYears(8)
         val birthAdult = LocalDate.now().minusYears(35)
@@ -198,7 +198,7 @@ class HouseholdPinningTest {
         assertEquals(2, h1Summary.males)
         assertEquals(1, h1Summary.females)
         assertEquals(1, h1Summary.elderly)
-        assertEquals(1, h1Summary.children)
+        assertEquals(1, h1Summary.schoolAge)
         assertNotNull(h1Summary.latitude)
         assertNotNull(h1Summary.longitude)
 

@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.auth.AuthManager
+import com.example.data.auth.UserProfile
 import com.example.viewmodel.AuthUiState
 import com.example.viewmodel.AuthViewModel
 import com.google.firebase.auth.FirebaseUser
@@ -155,14 +156,23 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `signInWithGoogleTest sets success state`() = runTest(testDispatcher) {
-        val fakeAuthManager = object : AuthManager({ null }) {}
+    fun `signInWithGoogle sets error state when manager returns failure`() = runTest(testDispatcher) {
+        val fakeAuthManager = object : AuthManager({ null }) {
+            override suspend fun signInWithGoogle(
+                context: Context,
+                customWebClientId: String?
+            ): Result<UserProfile> {
+                return Result.failure(IllegalStateException("Google sign-in unavailable"))
+            }
+        }
         val viewModel = AuthViewModel(fakeAuthManager)
         val context: Context = ApplicationProvider.getApplicationContext()
 
-        viewModel.signInWithGoogleTest(context, "testuser@gmail.com")
-        assertTrue(viewModel.uiState.value is AuthUiState.Success)
-        val success = viewModel.uiState.value as AuthUiState.Success
-        assertEquals("เข้าสู่ระบบบัญชี Google ทดสอบสำเร็จ", success.message)
+        viewModel.signInWithGoogle(context)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value is AuthUiState.Error)
+        val error = viewModel.uiState.value as AuthUiState.Error
+        assertEquals("Google sign-in unavailable", error.message)
     }
 }
