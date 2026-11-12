@@ -6,12 +6,14 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.data.AppDatabase
 import com.example.data.firestore.FirestoreManager
-import com.example.data.vhv.OsmRp00002Data
 import kotlinx.coroutines.CancellationException
 
 /**
- * Background WorkManager worker responsible for syncing Public Health Volunteer (OSM)
- * data from the OSMRP00002 dataset into Firestore database for offline persistence and access.
+ * Background WorkManager worker responsible for syncing locally registered
+ * Public Health Volunteer (VHV/OSM) records with Cloud Firestore.
+ *
+ * The worker deliberately does not seed records from the retired OSMRP00002
+ * dataset. Room is the source of locally registered records.
  */
 class OsmSyncWorker(
     context: Context,
@@ -29,26 +31,20 @@ class OsmSyncWorker(
             if (isStopped) {
                 return Result.success()
             }
-            Log.d(TAG, "Starting background sync worker for OSM (Public Health Volunteer) data...")
+
+            Log.d(TAG, "Starting background sync worker for VHV records...")
             val appContext = applicationContext
 
-            // Initialize Cloud Firestore with offline persistence
             FirestoreManager.initialize(appContext)
             val firestore = FirestoreManager.getInstance()
             if (firestore == null) {
-                Log.w(TAG, "Firestore instance unavailable. Skipping background OSM sync.")
-                return Result.success()
+                Log.w(TAG, "Firestore instance unavailable. Background VHV sync will be retried.")
+                return Result.retry()
             }
 
-            // Use AppDatabase singleton instance with full migration chain
+            // Use the shared Room database instance and its registered VHV records.
             val db = AppDatabase.getInstance(appContext)
             val vhvMemberDao = db.vhvMemberDao()
-
-            // Seed local database if empty
-            if (vhvMemberDao.getVhvCount() == 0) {
-                Log.i(TAG, "Seeding OSMRP00002 VHV dataset into Room...")
-                vhvMemberDao.insertAll(OsmRp00002Data.PA_KHA_VHV_MEMBERS)
-            }
 
             val syncHelper = VhvFirestoreSyncHelper(
                 context = appContext,
@@ -58,11 +54,17 @@ class OsmSyncWorker(
 
             val syncResult = syncHelper.syncOsmData()
             if (syncResult.isSuccess) {
-                val res = syncResult.getOrNull()
-                Log.i(TAG, "OSM background sync finished successfully: ${res?.personsSynced} records processed.")
+                val result = syncResult.getOrNull()
+                Log.i(
+                    TAG,
+                    "VHV background sync completed: ${result?.personsSynced ?: 0} records processed."
+                )
                 Result.success()
             } else {
-                Log.w(TAG, "OSM background sync non-critical failure: ${syncResult.exceptionOrNull()?.message}")
+                Log.w(
+                    TAG,
+                    "VHV background sync failed: ${syncResult.exceptionOrNull()?.message}"
+                )
                 Result.retry()
             }
         } catch (ce: CancellationException) {
